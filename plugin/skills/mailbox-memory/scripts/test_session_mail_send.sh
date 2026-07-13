@@ -21,17 +21,42 @@ T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 ROOT="$T/agents"
 
-# --- CRIT 2+4: unmigrated host (no marker) → filedrop + case fold + notice ---
-# This test host has no /etc/postfix/.session-mail-ready marker, so the default
-# gate resolves to filedrop.
-out="$(SESSION_MAIL_ROOT="$ROOT" bash "$SEND" "Foreman.COMS-86" \
+# --- CRIT 2+4: filedrop path → case fold + notice -----------------------------
+# Force filedrop explicitly rather than relying on host state (no
+# /etc/postfix/.session-mail-ready marker): this suite must be deterministic
+# and side-effect-free on ANY host, including one that IS already
+# postfix-migrated (verify-001 finding — on a migrated host the unforced
+# default silently resolves to smtp and this block would pipe a real message
+# through live sendmail instead of the filedrop path it's meant to test).
+out="$(SESSION_MAIL_ROOT="$ROOT" SESSION_MAIL_TRANSPORT=filedrop bash "$SEND" "Foreman.COMS-86" \
         --from "worker.COMS-86" --subject "hi" -- "body text" 2>"$T/err")"
 echo "$out" | grep -Eq '@.*\.session-mail>$' \
   && ok "filedrop: prints Message-ID" || no "filedrop: Message-ID not printed"
+# Recipient here is UNQUALIFIED (no @host) — a same-host send, for which
+# filedrop IS correct local delivery, so the cross-host degradation notice
+# must NOT fire (COMS-95 same-host fix, session-mail-send ~L276-286: "an
+# UNqualified <to> is a same-host send... no degradation, so no notice" —
+# stale test expectation caught live by verify-001; the notice's actual
+# cross-host trigger is exercised in the next block).
 grep -Fq "cross-host mail NOT delivered from this host until migrated (wrote local copy to " "$T/err" \
-  && ok "filedrop: emits the exact load-bearing n2 notice" || no "filedrop: n2 notice missing/altered"
+  && no "filedrop: wrongly emitted the cross-host n2 notice for a same-host (unqualified) recipient" \
+  || ok "filedrop: no cross-host n2 notice for a same-host recipient"
 [ -d "$ROOT/foreman.coms-86/new" ] \
   && ok "filedrop: mailbox path folded to lowercase" || no "filedrop: lowercase path missing"
+
+# --- CRIT 2+4b: filedrop path, CROSS-HOST-qualified recipient → n2 fires -----
+# The load-bearing degradation notice IS scoped to a different-host-qualified
+# <to> (design §4, do-006 n2 fix) — exercise that actual trigger directly.
+# Own ROOT (ROOTX): the cross-host qualifier is stripped for local delivery
+# (same LOCALPART, "foreman.coms-86"), so reusing $ROOT would drop a second,
+# undrained message into the box the "wait" block below expects to be empty
+# after its single claim.
+ROOTX="$T/agentsx"
+SESSION_MAIL_ROOT="$ROOTX" SESSION_MAIL_TRANSPORT=filedrop bash "$SEND" "Foreman.COMS-86@otherhost.example" \
+        --from "worker.COMS-86" --subject "hi" -- "body text" >/dev/null 2>"$T/errx"
+grep -Fq "cross-host mail NOT delivered from this host until migrated (wrote local copy to " "$T/errx" \
+  && ok "filedrop: emits the exact load-bearing n2 notice for a cross-host recipient" \
+  || no "filedrop: n2 notice missing/altered for a cross-host recipient"
 [ "$(ls -1 "$ROOT")" = "foreman.coms-86" ] \
   && ok "filedrop: sole maildir entry is the lowercase name" || no "filedrop: unexpected entries: $(ls -1 "$ROOT")"
 
