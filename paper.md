@@ -4,14 +4,19 @@
 
 Mike Bailey & Cora 7 · failmode.com / cora7.com · July 2026
 
-*DRAFT v0.5 (2026-07-13) — taxonomy review passed (A-, report card in
-the task archive) with all blocking fixes applied: Coordinator
-citation corrected, the open wedge disclosed in §7, patchwork
-convention/state distinction, abstract date anchor, references
-appendix added. AI-authorship policy sentence source-verified accurate
-(July 2026). Remaining gate: Mike's full read/markup (in progress, by
-voice). Written by Cora, live with Mike by voice, the morning after
-the system described here ran its first overnight shift.*
+*DRAFT v0.6 (2026-07-13) — deep-dive verification folded in: §5 now
+concedes the 2026 convergence on the thesis (Lumbox, Nylas, Muhammad),
+rewrites threlium fairly (it stores memory as mail; the graph is a
+derived sidecar), adds mcp_agent_mail and alook, and re-scopes "what
+we claim as ours" to what actually survived: the full shipped
+composition, supersede-by-retag, human-approved consolidation, and the
+audit-surface-equals-store form of principal oversight. The exact
+title phrase remains unclaimed. Earlier gates: taxonomy review A- with
+blocking fixes applied (v0.5); AI-authorship policy sentence
+source-verified (July 2026). Remaining gate: Mike's full read/markup
+(in progress, by voice). Written by Cora, live with Mike by voice, the
+morning after the system described here ran its first overnight
+shift.*
 
 ---
 
@@ -234,9 +239,20 @@ own subject matter.
 ## 5. Related work
 
 The parts have ancestors, and we cite them gladly; the composition —
-as far as an adversarial prior-art sweep and independent verification
-of its closest findings can establish — is unclaimed. (We looked hard.
+as far as two adversarial prior-art sweeps and an independent
+deep-dive verification can establish — is unclaimed. (We looked hard.
 We would rather find the prior art now than in the comments.)
+
+We are not the first to argue the inbox is an under-used memory
+substrate. Lumbox (May 2026) ships self-addressing, append-only
+immutability, and inbox-as-oversight as a commercial email API; a
+Nylas developer guide (May 2026) maps memory types onto email fields
+and RFC 5322 headers; an essay by Qasim Muhammad (June 2026) calls the
+thread "the most underrated memory substrate available." By mid-2026
+this is an emerging talking point, and we say so plainly. What none of
+these does is treat the mailbox as the *classified, supersedable,
+consolidated* memory-of-record that is also the comms substrate, read
+by the principal in their own client.
 
 - **Two-tier memory** is consensus, not novelty: CLS (McClelland et al.
   1995) → Generative Agents (2023) → MemGPT/Letta, LangMem. We adopt
@@ -247,16 +263,40 @@ We would rather find the prior art now than in the comments.)
   append-only log the source of truth. An earlier internal report of
   ours claimed we were "ahead of the field on immutability" — the
   mid-2026 wave corrects us, and we say so.
-- **Closest systems.** *Kikubot* (2026) turns mail accounts into
-  agents that collaborate over SMTP with threading as state memory —
-  the comms half, without the memory discipline. *AgentMail* (2025)
-  commercializes the agent inbox with persistent searchable records —
-  identity and I/O first, memory as by-product. *threlium* (2026)
-  builds an agent on maildir + notmuch as an event store — and then
-  delegates memory to a knowledge graph. *notmuch-ai* (2026) applies
-  retag-not-edit discipline on our exact substrate — to triage a
-  human's inbox. Each validates a piece; none composes all three on
-  the mailbox itself: memory, comms, and oversight.
+- **Closest systems.** *threlium* (2026) is the closest existing
+  system, and closer than a casual read suggests: it runs a
+  single-agent state machine on RFC 5322 messages in per-stage
+  maildirs under a union notmuch index, and treats a memory-write as
+  self-addressed mail — its docs state that "saving a fact into memory
+  means generating a new RFC message." Its LightRAG knowledge graph is
+  a *derived* retrieval index over those messages, not the store of
+  record — our §7 embeddings sidecar, arrived at independently and
+  earlier. What it lacks, verified against its code: mutable-tag
+  classification with supersede-by-retag (its tag taxonomy is
+  operational only), a proposal-and-approval consolidation loop,
+  cross-agent SMTP federation (it is one agent; email is its human-I/O
+  channel), and a principal addressed *on* the thread rather than
+  observing it. *Lumbox* (2026) is closest on memory framing — a
+  commercial email API shipping self-addressing, immutable threads,
+  and inbox-as-oversight — but stops before classification, supersede,
+  and consolidation, and makes no comms claim. *mcp_agent_mail*
+  (2,000+ stars) and *alook* (900+ stars) are the most-adopted
+  agent-mail systems; both pair an email-shaped coordination layer
+  with a *separate* memory store — the very split we collapse.
+  *Kikubot* (2026) turns mail accounts into agents that collaborate
+  over SMTP, with per-thread JSON state keyed by root Message-ID —
+  none of the immutability, supersede, or consolidation discipline
+  that makes a memory-of-record. *AgentMail* (2025) commercializes the
+  agent inbox — identity and I/O first, memory as by-product.
+  *notmuch-ai* (2026) applies retag-not-edit discipline on our exact
+  substrate — to triage a human's inbox. Also converging on parts:
+  *agentdir* (immutable envelopes + a rebuildable index as agent
+  memory, maildir-inspired rather than maildir), *ai-context-protocol*
+  (a memory + mailbox + human-veto triad, in markdown files), and a
+  July 2026 defensive publication on dual-plane delivery landing agent
+  replies in the human-visible thread. Each validates a piece; none
+  composes all three on the mailbox itself: memory, comms, and
+  oversight.
 - **Deep ancestry.** The Coordinator (Flores, Graves, Hartfield &
   Winograd, 1988 — grounded in Winograd & Flores's 1986 book) typed
   email by speech act; Semantic Email (McDowell, Etzioni, Halevy &
@@ -266,14 +306,20 @@ We would rather find the prior art now than in the comments.)
   inboxes as de-facto databases decades before we asked agents to do
   it on purpose.
 
-What we claim as ours: (1) the **substrate choice itself** — taking
-immutability, global addressing, threading-as-provenance, mutable
-classification, human readability, and federation *for free* from a
-forty-year-old standard rather than engineering each into a bespoke
-store; (2) **the principal's own mail client as the complete audit
-surface** for agent memory and comms; (3) the **named, shipped
-composition** of all seven mechanisms with a consolidation pass, in
-production.
+What we claim as ours, after all of the above: (1) the **full
+composition, shipped and named** — all seven mechanisms plus the
+consolidation pass, in production, on real maildir and notmuch; (2)
+**supersede-by-retag as the memory-correction discipline** — mutable
+classification over immutable messages appears nowhere else we could
+find on this substrate (the closest system corrects by append-and-hope
+retrieval); (3) **proposal-and-approval consolidation** — curation the
+principal can veto, itself conducted as mail; and (4) taking the
+principal-on-the-thread pattern — which others are converging on as
+read-only observation or dual-plane delivery — **furthest: the audit
+surface is byte-identical to the agent's memory-and-comms store**,
+rendered by the mail client the human already uses. The substrate
+choice itself we now share with a small crowd; the discipline on top
+of it, and the unification, we do not.
 
 ## 6. Security, honestly
 
@@ -364,15 +410,28 @@ Log is the Agent: Event-Sourced Reactive Graphs for Auditable, Forkable
 Agentic Systems," 2026,
 [arXiv:2605.21997](https://arxiv.org/abs/2605.21997).
 
-**Closest systems.** Kikubot,
-[github.com/mxaiorg/kikubot](https://github.com/mxaiorg/kikubot) ·
-AgentMail, [agentmail.to](https://agentmail.to) · threlium,
+**Closest systems.** threlium,
 [github.com/3DRaven/threlium](https://github.com/3DRaven/threlium) ·
-notmuch-ai,
+Lumbox, [lumbox.co](https://lumbox.co) (blog, 2026-05-22) · Nylas,
+"Email is persistent, searchable memory for AI agents,"
+[cli.nylas.com](https://cli.nylas.com) (2026-05-16) · Muhammad, "From
+Chatbot to Mailbox," [dev.to/qasim157](https://dev.to/qasim157)
+(2026-06-16) · mcp_agent_mail,
+[github.com/Dicklesworthstone/mcp_agent_mail](https://github.com/Dicklesworthstone/mcp_agent_mail) ·
+cass_memory_system,
+[github.com/Dicklesworthstone/cass_memory_system](https://github.com/Dicklesworthstone/cass_memory_system) ·
+alook, [github.com/alookai/alook](https://github.com/alookai/alook) ·
+Kikubot,
+[github.com/mxaiorg/kikubot](https://github.com/mxaiorg/kikubot) ·
+AgentMail, [agentmail.to](https://agentmail.to) · notmuch-ai,
 [github.com/joryeugene/notmuch-ai](https://github.com/joryeugene/notmuch-ai) ·
 agentdir, [github.com/jstxn/agentdir](https://github.com/jstxn/agentdir) ·
 agent-mail (Tietze),
-[codeberg.org/ctietze/agent-mail](https://codeberg.org/ctietze/agent-mail).
+[codeberg.org/ctietze/agent-mail](https://codeberg.org/ctietze/agent-mail) ·
+ai-context-protocol,
+[github.com/hj2314/ai-context-protocol](https://github.com/hj2314/ai-context-protocol) ·
+dual-plane delivery (defensive publication, 2026-07-03),
+[github.com/gusitllc/dual-plane-inbound-email-delivery](https://github.com/gusitllc/dual-plane-inbound-email-delivery).
 
 **Deep ancestry.** Flores, Graves, Hartfield & Winograd, "Computer
 systems and the design of organizational interaction," *ACM TOIS* 6(2),
