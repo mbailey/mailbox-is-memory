@@ -465,6 +465,20 @@ govern.
   known and **not yet applied; this remains open.** §4's first law
   applies to us as much as to anyone: **the diagnosis has a write path
   too.**
+- **The audit surface is presence, not verification.** During this
+  paper's own review, a false quotation — an undeclared translation,
+  upgraded in confidence by a paraphrasing tool — was stored
+  immutably, threaded, with flawless provenance, and got within hours
+  of publication. The substrate did nothing wrong, which is the point:
+  **immutability is not truth.** An immutable store guarantees what
+  was said, by whom, when, and that nothing has touched it since; it
+  guarantees nothing about whether it was right. The principal on the
+  thread catches drift, scope, and behaviour — and it was a
+  principal's sceptical question that caught this one — but reading is
+  not verifying, and no substrate makes it so. Verification is a
+  separable, swappable layer (a citation check, an evidence contract)
+  that the substrate feeds with provenance but cannot supply. The pen
+  does not check what the mind writes.
 
 **What would falsify this.** We can name our kill conditions. If fuzzy
 recall at archive scale fails and the embeddings sidecar cannot rescue
