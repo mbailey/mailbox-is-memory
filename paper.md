@@ -417,7 +417,9 @@ content; the principal on every thread. **Designed and gated, not yet
 shipped** — capability tiers keyed on DKIM/DMARC-verified sending
 domains (never on `From:` display strings); machine-actionable verbs
 carried only in a structured JSON MIME part with prose treated as
-display-only; reply-for-approval across every trust boundary; and
+display-only; reply-for-approval across every trust boundary (a
+cross-boundary request is held until the principal approves by reply —
+the authorisation itself lives on the thread); and
 per-agent signing keys, because DKIM authenticates the *domain* and
 nothing finer — inside one domain every agent is indistinguishable to a
 verifier, so a capability tier cannot tell a principal's assistant from
