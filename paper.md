@@ -351,8 +351,9 @@ by the principal in their own client.
   Two stores, on purpose. *mcp_agent_mail*
   (2,022 stars) and *alook* (899 stars, both as of 13 July 2026) are
   the most-adopted agent-mail systems; both pair an email-shaped
-  coordination layer with a *separate* memory store — the very split we
-  collapse. *alook* is worth being precise about, because its marketing
+  coordination layer with a *separate* memory store (for
+  *mcp_agent_mail*, its author's companion *cass_memory_system*) — the
+  very split we collapse. *alook* is worth being precise about, because its marketing
   says our thesis out loud — "that context layer **is** email" — while
   its implementation keeps recall in a separate timeline database and
   mandates a stateless service: "All the state must be in DB or
