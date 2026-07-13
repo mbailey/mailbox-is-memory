@@ -60,7 +60,20 @@ elif command -v notmuch >/dev/null 2>&1; then
 else
   NOTMUCH="/opt/homebrew/bin/notmuch"
 fi
-export NOTMUCH_CONFIG="${NOTMUCH_CONFIG:-$HOME/.notmuch-config}"
+# do-005 refine (foreman review, round 2): do NOT force NOTMUCH_CONFIG to the
+# legacy $HOME/.notmuch-config path when the caller hasn't set it. setup.sh's
+# fresh-machine bootstrap (see its notmuch_config_path()) creates new configs
+# at the modern XDG path ($XDG_CONFIG_HOME/notmuch/<profile>/config, or
+# $HOME/.config/notmuch/default/config), not the legacy path — so forcing the
+# legacy default here made a freshly-bootstrapped user's rebuild-proof run
+# die with "could not locate database" even though `notmuch` itself would
+# have found the real config just fine. Verified live: with a valid
+# XDG-bootstrapped config present and NOTMUCH_CONFIG unset, notmuch resolves
+# database.path correctly; forcing NOTMUCH_CONFIG to the (nonexistent)
+# legacy path breaks it. Fix: leave NOTMUCH_CONFIG exactly as the caller
+# left it — unset stays unset, so notmuch's own documented search order
+# (env override → XDG default profile → legacy ~/.notmuch-config) runs
+# untouched; an explicitly-set NOTMUCH_CONFIG still passes through as-is.
 
 DB="$("$NOTMUCH" config get database.path 2>/dev/null)"
 [ -n "$DB" ] || { echo "rebuild-proof: cannot find database.path" >&2; exit 2; }
