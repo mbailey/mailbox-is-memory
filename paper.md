@@ -411,19 +411,27 @@ crafted message reaching an agent on the trusted (tailnet) tier, where
 unattended tool use is permitted. We design against that message, not
 against the average one.
 
-Our controls — marked honestly by status: **running today** — agent
-mail confined to the tailnet tier; no automatic fetching of remote
-content; the principal on every thread. **Designed and gated, not yet
-shipped** — capability tiers keyed on DKIM/DMARC-verified sending
-domains (never on `From:` display strings); machine-actionable verbs
-carried only in a structured JSON MIME part with prose treated as
-display-only; reply-for-approval across every trust boundary (a
-cross-boundary request is held until the principal approves by reply —
-the authorisation itself lives on the thread); and
-per-agent signing keys, because DKIM authenticates the *domain* and
-nothing finer — inside one domain every agent is indistinguishable to a
-verifier, so a capability tier cannot tell a principal's assistant from
-a disposable worker. Minting an agent's session identifier *as* its
+Our controls, marked honestly by status. **Running today:**
+
+- agent mail confined to the tailnet tier
+- no automatic fetching of remote content
+- the principal on every thread
+
+**Designed and gated, not yet shipped:**
+
+- capability tiers keyed on DKIM/DMARC-verified sending domains (never
+  on `From:` display strings)
+- machine-actionable verbs carried only in a structured JSON MIME part,
+  with prose treated as display-only
+- reply-for-approval across every trust boundary — a cross-boundary
+  request is held until the principal approves by reply; the
+  authorisation itself lives on the thread
+- per-agent signing keys, because DKIM authenticates the *domain* and
+  nothing finer — inside one domain every agent is indistinguishable to
+  a verifier, so a capability tier cannot tell a principal's assistant
+  from a disposable worker
+
+Minting an agent's session identifier *as* its
 public key collapses identity and attestation into one string: you
 cannot claim a session you do not hold the key for. Custody is the
 subtlety — a model that can read its own environment can leak its own
