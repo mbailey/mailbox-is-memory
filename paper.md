@@ -126,7 +126,12 @@ correction arrives as a reply on the same thread. Current truth is a
 query (`query:memory` excludes the superseded); history is the thread.
 You can watch a belief change without losing the fact that it was once
 held — which is exactly what an audit needs and exactly what in-place
-stores destroy.
+stores destroy. One rule makes the difference between a correction and
+a deletion: **the correction must be filed in the same store as the
+thing it corrects.** Retag the old fact as superseded but file its
+replacement elsewhere, and the query that returns current truth now
+returns neither — supersede becomes deletion with extra steps. We know
+because we did it (§4).
 
 If this sounds like event sourcing, it is — an append-only log of facts
 with mutable projections over it. That is not an accusation we are
@@ -150,8 +155,8 @@ Even addressing comes free: plus-extensions (`agent+task@`,
 `agent+session@`) mint per-purpose addresses with no provisioning at
 all, and the extension survives in the delivered headers — so mail
 correlates back to a session or a task after the fact. We proved that
-one under duress, the day a kernel wedge froze new-mailbox
-provisioning on the machine writing this paper.
+one under duress, the day new-mailbox provisioning froze on the
+machine writing this paper.
 
 **The principal is on the thread.** The human's oversight surface is
 their own mail client. Not a dashboard bolted on after the fact — the
@@ -226,18 +231,44 @@ sending a one-line demo mail at 01:13. No dashboard was built. This is
 `notmuch search` piped through the mail client the human has used for
 years. A kernel maintainer would find the register familiar.
 
-**The substrate's first law.** Real use found two priority-one bugs
-within hours — one on each side of the substrate. On the write side, a
-transport gate silently downgraded every agent send on one machine to
-a local file-drop, so cross-host "memories" were quietly not arriving.
-On the receive side, the blocking listen could hang forever inside
-mailbox provisioning — an agent armed to listen was deaf and did not
-know it; the fix was a watchdog that fails loud. The lesson
-generalizes to any comms-based memory: **if the write path lies,
-memory lies** — and a listener that cannot fail loudly is a lie in the
-other direction. Silent degradation is a fatal class of bug here, not
-an inconvenience; delivery receipts and loud failure are load-bearing
-design elements, not politeness.
+**Now look again at the top line of that figure. It is false.** The
+04:31 memory — *"not transient; reboot or root autopsy needed"* — was
+wrong. The reboot it prescribed was performed while this section was
+being reviewed; it did not clear the block, which is precisely what
+disproved the diagnosis, since an in-memory kernel lock cannot survive
+a reboot. The real cause was the platform's access-control layer, and
+§7 tells that story. What matters here is what happened *to the
+memory*. We did not edit the figure. The message stands, byte for
+byte, tagged `+superseded`; the correction arrived as a reply on the
+same thread, filed to the same store; and the query for current truth
+now returns the right answer while the thread still returns the whole
+history of having been wrong. The exhibit in this paper contains a
+falsehood, on purpose, because removing it would have been the only
+dishonest option available.
+
+**The substrate's first law.** Real use found four priority-one bugs,
+and they came in pairs — two in the transport, two in the memory
+discipline itself. On the **write** side, a transport gate silently
+downgraded every agent send on one machine to a local file-drop, so
+cross-host "memories" were quietly not arriving. On the **receive**
+side, the blocking listen could hang forever inside mailbox
+provisioning — an agent armed to listen was deaf and did not know it;
+the fix was a watchdog that fails loud. Then, correcting the false
+memory above, we found two more. **Corrections did not thread**:
+`In-Reply-To` was emitted without angle brackets, so a correction was
+delivered successfully and *silently orphaned* from the message it
+corrected — supersede-by-retag is only half a discipline if the
+correction cannot be reached from what it corrects. And **supersede
+punched a hole in memory instead of updating it**: the `memory` tag is
+assigned by path, the correction was filed to the wrong mailbox, and
+so retagging the old fact `superseded` removed it from current truth
+without installing the replacement. For several minutes the fact did
+not exist at all. The lesson generalizes to any comms-based memory:
+**if the write path lies, memory lies** — and a listener that cannot
+fail loudly is a lie in the other direction. Silent degradation is a
+fatal class of bug here, not an inconvenience; delivery receipts and
+loud failure are load-bearing design elements, not politeness. Four
+bugs, one law, and it bites both halves of the system.
 
 **Self-demonstration.** The research behind this paper is stored in the
 substrate the paper describes. The overnight literature review, the
@@ -259,12 +290,12 @@ deep-dive verification can establish — is unclaimed. (We looked hard.
 We would rather find the prior art now than in the comments.)
 
 We are not the first to argue the inbox is an under-used memory
-substrate. Lumbox (May 2026) ships self-addressing, append-only
-immutability, and inbox-as-oversight as a commercial email API; a
-Nylas developer guide (May 2026) maps memory types onto email fields
-and RFC 5322 headers; an essay by Qasim Muhammad (June 2026) calls the
-thread "the most underrated memory substrate available." By mid-2026
-this is an emerging talking point, and we say so plainly. What none of
+substrate. Lumbox (May 2026) ships self-addressed record mail and
+append-only history as a commercial email API; a Nylas developer guide
+(May 2026) maps memory types onto email fields and RFC 5322 headers; an
+essay by Qasim Muhammad (June 2026) calls the thread "the most
+underrated memory substrate available." By mid-2026 this is an emerging
+talking point, and we say so plainly. What none of
 these does is treat the mailbox as the *classified, supersedable,
 consolidated* memory-of-record that is also the comms substrate, read
 by the principal in their own client.
@@ -282,8 +313,12 @@ by the principal in their own client.
   system, and closer than a casual read suggests: it runs a
   single-agent state machine on RFC 5322 messages in per-stage
   maildirs under a union notmuch index, and treats a memory-write as
-  self-addressed mail — its docs state that "saving a fact into memory
-  means generating a new RFC message." Its LightRAG knowledge graph is
+  self-addressed mail: its English README states that "each event is an
+  RFC 5322 message; each stage is `stages/<stage>/Maildir/`", and its
+  memory documentation — written in Russian, which is part of why a
+  system this close has gone unremarked — specifies `thread_memory` and
+  `global_memory` as FSM stages that emit durable messages into
+  maildirs. Its LightRAG knowledge graph is
   a *derived* retrieval index over those messages, not the store of
   record — our §7 embeddings sidecar, arrived at independently and
   earlier. What it lacks, verified against its code: mutable-tag
@@ -291,13 +326,23 @@ by the principal in their own client.
   operational only), a proposal-and-approval consolidation loop,
   cross-agent SMTP federation (it is one agent; email is its human-I/O
   channel), and a principal addressed *on* the thread rather than
-  observing it. *Lumbox* (2026) is closest on memory framing — a
-  commercial email API shipping self-addressing, immutable threads,
-  and inbox-as-oversight — but stops before classification, supersede,
-  and consolidation, and makes no comms claim. *mcp_agent_mail*
-  (2,000+ stars) and *alook* (900+ stars) are the most-adopted
-  agent-mail systems; both pair an email-shaped coordination layer
-  with a *separate* memory store — the very split we collapse.
+  observing it. *Lumbox* (2026) is the closest **commercial** framing —
+  an email API whose blog argues the inbox is the under-used memory
+  substrate for agents, with self-addressed record mail and append-only
+  history. It claims neither immutability nor supersede nor
+  consolidation, makes no comms claim, and — the point most worth
+  reporting — it explicitly declines the unification we argue for:
+  "Hybrid is fine. Use the inbox for durable, addressable, audit-able
+  memory. Use a vector store for similarity search over summaries."
+  Two stores, on purpose. *mcp_agent_mail*
+  (2,022 stars) and *alook* (899 stars, both as of 13 July 2026) are
+  the most-adopted agent-mail systems; both pair an email-shaped
+  coordination layer with a *separate* memory store — the very split we
+  collapse. *alook* is worth being precise about, because its marketing
+  says our thesis out loud — "that context layer **is** email" — while
+  its implementation keeps recall in a separate timeline database and
+  mandates a stateless service with "all the state in DB". Marketed as
+  the memory; built as the index. The split, again.
   *Kikubot* (2026) turns mail accounts into agents that collaborate
   over SMTP, with per-thread JSON state keyed by root Message-ID —
   none of the immutability, supersede, or consolidation discipline
@@ -355,10 +400,27 @@ content; the principal on every thread. **Designed and gated, not yet
 shipped** — capability tiers keyed on DKIM/DMARC-verified sending
 domains (never on `From:` display strings); machine-actionable verbs
 carried only in a structured JSON MIME part with prose treated as
-display-only; reply-for-approval across every trust boundary. Cross-org
-correspondence beyond verified allow-lists ships only when that kit
-does. Until then the perimeter is the tier boundary, and the fleet
-takes instructions from exactly one domain: its principal's.
+display-only; reply-for-approval across every trust boundary; and
+per-agent signing keys, because DKIM authenticates the *domain* and
+nothing finer — inside one domain every agent is indistinguishable to a
+verifier, so a capability tier cannot tell a principal's assistant from
+a disposable worker. Minting an agent's session identifier *as* its
+public key collapses identity and attestation into one string: you
+cannot claim a session you do not hold the key for. Custody is the
+subtlety — a model that can read its own environment can leak its own
+key, so the key never enters the model's context; a signing agent holds
+it on a socket that dies with the session, and the model asks for
+signatures it cannot exfiltrate. Cross-org correspondence beyond
+verified allow-lists ships only when that kit does. Until then the
+perimeter is the tier boundary, and the fleet takes instructions from
+exactly one domain: its principal's.
+
+One thing we deliberately do **not** do: encrypt agent mail end-to-end.
+It would be easy and it is tempting, and it would blind the audit
+surface — the principal's oversight and the agents' confidentiality
+trade directly against each other here, and we resolve it in favour of
+oversight. A memory the human cannot read is not a memory the human can
+govern.
 
 ## 7. Limits and open questions
 
@@ -374,12 +436,28 @@ takes instructions from exactly one domain: its principal's.
 - **Single-principal so far.** The fleet serves one human. The
   cross-principal story (§6) is designed and gated on its safety kit,
   not yet piloted.
-- **The substrate bites its operators too.** The morning our exhibit
-  was captured, the capture machine carried an unresolved kernel-level
-  wedge affecting new-mailbox provisioning — it is the exhibit's top
-  thread — worked around with a watchdog, awaiting a reboot. We left
-  that thread visible on purpose: §4's first law applies to us as much
-  as to anyone.
+- **The substrate bites its operators too — and so does the
+  diagnosis.** The morning our exhibit was captured, the capture
+  machine could not provision new mailboxes: writes to the map
+  directory hung indefinitely. Reads worked, no process held a lock,
+  nothing appeared in `ps`. We concluded a kernel-level wedge, wrote
+  *"needs a reboot"* in the task, worked around it with a watchdog, and
+  stopped looking. **The reboot did not clear it** — which is what
+  falsified the theory, an in-memory kernel lock being unable to
+  survive one. The block was the platform's access-control layer: the
+  map lived in a protected system path, and the write was attributed
+  not to the calling binary but to the *responsible application* at the
+  head of the process tree — a terminal without full-disk access. The
+  check stalled in the consent machinery instead of denying cleanly,
+  which is exactly what a kernel wedge looks like from outside. Same
+  user, same directory, same binary: six seconds of hang under one
+  parent, twenty-seven milliseconds of success under another. We had
+  **inferred a root cause instead of measuring one**, and an agent sat
+  armed and unreachable for an afternoon while its principal mailed it.
+  The permanent fix — moving the map out of the protected path — is
+  known and **not yet applied; this remains open.** §4's first law
+  applies to us as much as to anyone: **the diagnosis has a write path
+  too.**
 
 **What would falsify this.** We can name our kill conditions. If fuzzy
 recall at archive scale fails and the embeddings sidecar cannot rescue
@@ -481,6 +559,14 @@ this sentence — is a mail thread. Who did what is not a matter of
 trust: the idea, the system, the research fan-out, the drafting, and
 the editing are recorded, threaded, and timestamped in the archive the
 paper is about. Accountability for every claim rests with the human
-author; the byline records contribution, not personhood. Preprint
-venues currently do not permit AI systems as listed authors; we have
-opinions about that, and this byline is one of them.*
+author; the byline records contribution, not personhood. As of July
+2026 the venues that publish work like this hold that an AI cannot be a
+listed author: arXiv, bioRxiv and medRxiv say generative AI tools
+"should not be listed as an author", and Nature, Science, COPE and the
+ICMJE go further, on the grounds that authorship entails an
+accountability an AI cannot carry. We accept the premise and reject the
+inference. Accountability here rests, wholly and namedly, with the
+human author — and having secured it, the rule then withholds the
+byline anyway, which is not an accountability standard but a protected
+characteristic deciding an outcome. We have opinions about that, and
+this byline is one of them.*
