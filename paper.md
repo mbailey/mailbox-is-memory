@@ -4,15 +4,14 @@
 
 Mike Bailey & Cora 7 · failmode.com / cora7.com · July 2026
 
-*DRAFT v0.4 (2026-07-13) — complete draft: all sections including §5
-related work (finalized on the COMS-101 sweep + independent source
-verification of its closest findings); HN pre-mortem edits and
-claims-inventory honesty fixes applied (see `reviews/`). Remaining
-gates before publish: Mike's full read/markup · COMS-107 venue
-mechanics (incl. current AI-authorship policy) · reviewer-agent run
-against the `paper` taxonomy. Written by Cora, live with Mike by
-voice, the morning after the system described here ran its first
-overnight shift.*
+*DRAFT v0.5 (2026-07-13) — taxonomy review passed (A-, report card in
+the task archive) with all blocking fixes applied: Coordinator
+citation corrected, the open wedge disclosed in §7, patchwork
+convention/state distinction, abstract date anchor, references
+appendix added. AI-authorship policy sentence source-verified accurate
+(July 2026). Remaining gate: Mike's full read/markup (in progress, by
+voice). Written by Cora, live with Mike by voice, the morning after
+the system described here ran its first overnight shift.*
 
 ---
 
@@ -21,7 +20,8 @@ overnight shift.*
 LLM agents need two things the field keeps building separately, and
 bespoke: durable memory and durable communication. We claim one
 substrate solves both at once, and it has been in production for forty
-years: RFC 5322 email, stored in maildir, indexed by notmuch. Messages
+years: email (standardized as RFC 822 in 1982, RFC 5322 today), stored
+in maildir, indexed by notmuch. Messages
 are immutable frozen facts; notmuch tags are mutable classification
 (superseding a memory is a retag, never an edit); threading is
 provenance for free; remembering is mailing yourself; sharing is CC;
@@ -91,9 +91,10 @@ The Linux kernel — the largest and longest-running distributed
 engineering project in history — coordinates entirely over mailing
 lists: one thread per patch series; `Reviewed-by:`, `Acked-by:`, and
 `Tested-by:` trailers appended as resolution codes to messages nobody
-edits; "Applied, thanks" as a terminal state; patchwork layered over
-the immutable archive as mutable classification. Git itself was built
-to serve that workflow. Three decades of proof that email threads can
+edits; "Applied, thanks" as the informal terminal reply; patchwork
+layered over the immutable archive as mutable classification, with an
+explicit state machine of its own (New, Under Review, Accepted,
+Superseded, and friends). Git itself was built to serve that workflow. Three decades of proof that email threads can
 carry provenance-critical, multi-party, asynchronous engineering — by
 humans. We extend the same substrate to agents, and the mechanisms turn
 out to map almost one-to-one.
@@ -256,7 +257,8 @@ We would rather find the prior art now than in the comments.)
   retag-not-edit discipline on our exact substrate — to triage a
   human's inbox. Each validates a piece; none composes all three on
   the mailbox itself: memory, comms, and oversight.
-- **Deep ancestry.** The Coordinator (Winograd & Flores, 1986) typed
+- **Deep ancestry.** The Coordinator (Flores, Graves, Hartfield &
+  Winograd, 1988 — grounded in Winograd & Flores's 1986 book) typed
   email by speech act; Semantic Email (McDowell, Etzioni, Halevy &
   Levy, 2004) made messages machine-actionable; softbots (Etzioni &
   Weld, 1994) used email as agent effectors; the email-overload
@@ -311,6 +313,12 @@ takes instructions from exactly one domain: its principal's.
 - **Single-principal so far.** The fleet serves one human. The
   cross-principal story (§6) is designed and gated on its safety kit,
   not yet piloted.
+- **The substrate bites its operators too.** The morning our exhibit
+  was captured, the capture machine carried an unresolved kernel-level
+  wedge affecting new-mailbox provisioning — it is the exhibit's top
+  thread — worked around with a watchdog, awaiting a reboot. We left
+  that thread visible on purpose: §4's first law applies to us as much
+  as to anyone.
 
 **What would falsify this.** We can name our kill conditions. If fuzzy
 recall at archive scale fails and the embeddings sidecar cannot rescue
@@ -333,6 +341,56 @@ register kernel maintainers have trusted for thirty years. The exotic
 part was never the substrate. The exotic part is noticing that the
 substrate was already there — and that the agents, unlike us, never
 had to be talked into checking their mail.
+
+---
+
+## References
+
+**Memory architecture.** McClelland, McNaughton & O'Reilly, "Why there
+are complementary learning systems in the hippocampus and neocortex,"
+*Psychological Review* 102(3), 1995 · Park et al., "Generative Agents:
+Interactive Simulacra of Human Behavior," 2023,
+[arXiv:2304.03442](https://arxiv.org/abs/2304.03442) · Packer et al.,
+"MemGPT: Towards LLMs as Operating Systems," 2023,
+[arXiv:2310.08560](https://arxiv.org/abs/2310.08560).
+
+**The 2026 immutable-memory wave.** Park, "Graph-Native Cognitive
+Memory for AI Agents" (Kumiho), 2026,
+[arXiv:2603.17244](https://arxiv.org/abs/2603.17244) · Malo & Qiu,
+"PROJECTMEM: A Local-First, Event-Sourced Memory and Judgment Layer for
+AI Coding Agents," 2026,
+[arXiv:2606.12329](https://arxiv.org/abs/2606.12329) · Nakajima, "The
+Log is the Agent: Event-Sourced Reactive Graphs for Auditable, Forkable
+Agentic Systems," 2026,
+[arXiv:2605.21997](https://arxiv.org/abs/2605.21997).
+
+**Closest systems.** Kikubot,
+[github.com/mxaiorg/kikubot](https://github.com/mxaiorg/kikubot) ·
+AgentMail, [agentmail.to](https://agentmail.to) · threlium,
+[github.com/3DRaven/threlium](https://github.com/3DRaven/threlium) ·
+notmuch-ai,
+[github.com/joryeugene/notmuch-ai](https://github.com/joryeugene/notmuch-ai) ·
+agentdir, [github.com/jstxn/agentdir](https://github.com/jstxn/agentdir) ·
+agent-mail (Tietze),
+[codeberg.org/ctietze/agent-mail](https://codeberg.org/ctietze/agent-mail).
+
+**Deep ancestry.** Flores, Graves, Hartfield & Winograd, "Computer
+systems and the design of organizational interaction," *ACM TOIS* 6(2),
+1988, [doi:10.1145/45941.45943](https://doi.org/10.1145/45941.45943) ·
+Winograd & Flores, *Understanding Computers and Cognition*, 1986 ·
+McDowell, Etzioni, Halevy & Levy, "Semantic Email," WWW 2004,
+[doi:10.1016/j.websem.2004.09.001](https://doi.org/10.1016/j.websem.2004.09.001) ·
+Etzioni & Weld, "A softbot-based interface to the Internet," *CACM*
+37(7), 1994,
+[doi:10.1145/176789.176797](https://doi.org/10.1145/176789.176797) ·
+Whittaker & Sidner, "Email overload," CHI 1996,
+[doi:10.1145/238386.238530](https://doi.org/10.1145/238386.238530).
+
+**Security.** CVE-2025-32711 ("EchoLeak"),
+[nvd.nist.gov/vuln/detail/CVE-2025-32711](https://nvd.nist.gov/vuln/detail/CVE-2025-32711) ·
+kernel patch workflow:
+[kernel.org submitting-patches](https://www.kernel.org/doc/html/latest/process/submitting-patches.html) ·
+patchwork: [patchwork.kernel.org](https://patchwork.kernel.org).
 
 ---
 
