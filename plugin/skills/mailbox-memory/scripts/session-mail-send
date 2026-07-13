@@ -98,7 +98,7 @@ SID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"; SID="${SID:0:8}"
 # isn't there.
 #
 # The trap is a format disagreement between two tools in the same pipeline:
-# `notmuch search --output=messages` prints ids BARE (`id:1783881117.…@m5`),
+# `notmuch search --output=messages` prints ids BARE (`id:1783881117.…@host`),
 # while this script's own `Message-ID:` output prints them BRACKETED. Copy an id
 # out of a notmuch query — the obvious way to reply to something you just found —
 # and you get the broken form. So: accept either, emit the correct one.

@@ -104,10 +104,11 @@ provision_mailbox_map() {
   # loop — the agent looked armed but was deaf, and even --timeout never fired.
   # Provisioning must NEVER block arming: give the generator 10s, then kill it and
   # arm watch-only.
-  # NOT `mktemp -t NAME`: that is a BSD-ism. GNU coreutils (first on PATH on m5)
-  # reads -t as "use TMPDIR" and demands trailing X's — "too few X's in template"
-  # — which under `set -e` killed the ARM ITSELF, i.e. the loud-failure guard broke
-  # the very thing it was guarding. Explicit template = portable on both.
+  # NOT `mktemp -t NAME`: that is a BSD-ism. GNU coreutils (first on PATH on
+  # most Linux hosts) reads -t as "use TMPDIR" and demands trailing X's —
+  # "too few X's in template" — which under `set -e` killed the ARM ITSELF,
+  # i.e. the loud-failure guard broke the very thing it was guarding.
+  # Explicit template = portable on both.
   local errlog; errlog="$(mktemp "${TMPDIR:-/tmp}/vmailbox-gen-err.XXXXXX")"
   "$gen" --root "$mailroot" >/dev/null 2>"$errlog" &
   gpid=$!
@@ -121,8 +122,8 @@ provision_mailbox_map() {
   # whose box never made it into the postfix map armed happily and sat there DEAF:
   # watching a maildir nothing could be delivered to, while every sender got an
   # "unknown user" bounce they never read. "Armed but unreachable" must be
-  # impossible to miss — it is exactly what cost us a live super
-  # (super.of-tpp-infra, 2026-07-13).
+  # impossible to miss — it is exactly what cost us a live agent once,
+  # silently, for hours.
   # `rc=0; cmd || rc=$?` — NOT `cmd; rc=$?`, which trips `set -e` and kills the
   # script the moment the box is unreachable, i.e. exactly when the warning below
   # is the thing we most need to print.
