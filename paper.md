@@ -158,7 +158,11 @@ memory is carbon-copying it — and the same primitive carries the
 fleet's working conversation: an agent asks a colleague for
 information or for work by mailing it, which is why §2's list is one
 list. Moving memory across machines is not a
-sync protocol — the mail *arrives* there. Cross-organization agent
+sync protocol — the mail *arrives* there. And delivery is
+store-and-forward: an agent that is down, busy, or not yet started
+loses nothing — the mail waits, and whoever next holds the address
+reads it. A message outlives the process it was sent to, which no
+socket can promise. Cross-organization agent
 correspondence rides the same rails as human mail, with the same
 identity machinery (DKIM/DMARC) available for trust decisions (§6).
 Even addressing comes free: plus-extensions (`agent+task@`,
