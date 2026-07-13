@@ -427,9 +427,15 @@ govern.
 
 - **Fuzzy recall at volume is untested.** Boolean + date search is
   excellent for known-item recall; we predict it is weak for fuzzy
-  association at archive scale. The designed answer — an embeddings
+  association at archive scale. A designed candidate — an embeddings
   sidecar keyed by Message-ID, derived and rebuildable, never
-  authoritative — remains an open experiment.
+  authoritative — remains an open experiment, and we may never need
+  to run it: the fleet's current-truth memory still fits in a context
+  window, consolidation exists precisely so fuzzy questions are asked
+  of the curated tier rather than the raw log, and an agent expands
+  its own queries at a rate no human searcher does. We will build the
+  sidecar when the archive outgrows those answers, not before — you
+  don't stand up the cluster while the pipeline still fits.
 - **Tags are an index, not truth.** notmuch tags live in a rebuildable
   Xapian database; lifecycle state that must survive a rebuild needs a
   durable home (amendment messages / folders), with hooks re-deriving
