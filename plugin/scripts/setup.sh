@@ -109,6 +109,34 @@ notmuch_set_additive() {
     fi
 }
 
+# notmuch_set_new_tags FORCE TAG... — additive setter for the list-type
+# new.tags config key. `notmuch config get new.tags` returns one tag per
+# line, not space-separated, so it needs its own compare/set logic instead of
+# notmuch_set_additive's single-value string compare.
+notmuch_set_new_tags() {
+    local force="$1"; shift
+    local want=("$@")
+    local current=()
+    local line
+    while IFS= read -r line; do
+        [ -n "$line" ] && current+=("$line")
+    done < <(notmuch_get new.tags)
+
+    local want_joined current_joined
+    want_joined="$(printf '%s ' "${want[@]}")"
+    current_joined="$(printf '%s ' "${current[@]+"${current[@]}"}")"
+
+    if [ ${#current[@]} -eq 0 ] || [ "$current_joined" = "$want_joined" ]; then
+        echo "[notmuch] new-mail tags: setting new.tags = ${want[*]}"
+        run notmuch config set new.tags "${want[@]}"
+    elif [ "$force" = 1 ]; then
+        echo "[notmuch] new-mail tags: overwriting existing new.tags ('${current[*]}' -> '${want[*]}') [--force]"
+        run notmuch config set new.tags "${want[@]}"
+    else
+        echo "[notmuch] new-mail tags: leaving existing new.tags = '${current[*]}' untouched (differs from '${want[*]}'; pass --force to overwrite)"
+    fi
+}
+
 cmd_notmuch() {
     local force=0
     local hooks_dir=""
@@ -148,13 +176,23 @@ cmd_notmuch() {
     notmuch_set_additive query.memory "tag:memory and not tag:superseded" "saved search" "$force"
 
     # new.tags: additive only — don't fight the user's existing base config,
-    # design §4/§9 open question 3.
-    notmuch_set_additive new.tags "unread inbox" "new-mail tags" "$force"
+    # design §4/§9 open question 3. new.tags is a LIST-type config key, not a
+    # single string: `notmuch config get new.tags` returns one tag per line
+    # (newline-separated, verified live: "unread\ninbox\n"), and `notmuch
+    # config set new.tags` takes each tag as its own argument — joining them
+    # into one space-separated argument would set a single literal tag
+    # containing a space instead of two tags (foreman review). Handled by a
+    # dedicated list-aware setter rather than notmuch_set_additive.
+    notmuch_set_new_tags "$force" unread inbox
 
     # Install the post-new hook. Resolve hooks.dir the way notmuch itself
-    # does: explicit hooks.dir config, else <database.path>/.notmuch/hooks.
+    # does: explicit --hooks-dir override, else the real config key
+    # database.hook_dir (NOT "hooks.dir" — that key does not exist; verified
+    # live that `notmuch config get hooks.dir` is silently empty while
+    # `database.hook_dir` returns the real path — foreman review), else
+    # <database.path>/.notmuch/hooks.
     if [ -z "$hooks_dir" ]; then
-        hooks_dir="$(notmuch_get hooks.dir)"
+        hooks_dir="$(notmuch_get database.hook_dir)"
     fi
     if [ -z "$hooks_dir" ]; then
         local db_path
@@ -402,7 +440,12 @@ cmd_postfix() {
     if [ "$print" = 1 ] || [ "$DRY_RUN" = 1 ]; then
         generate
         if [ "$DRY_RUN" = 1 ]; then
-            echo "  + (dry-run) would write the map above to $target${no_postmap:+ (skipping postmap)}"
+            # no_postmap is always SET (0 or 1), so ${no_postmap:+...} (a
+            # set-ness test) would always expand — gate on the VALUE instead
+            # (foreman review nit).
+            local skip_msg=""
+            [ "$no_postmap" = 1 ] && skip_msg=" (skipping postmap)"
+            echo "  + (dry-run) would write the map above to $target$skip_msg"
         fi
         return 0
     fi
@@ -449,11 +492,17 @@ cmd_all() {
             *)         die "all: unknown argument: $1 (try --help)" ;;
         esac
     done
-    cmd_maildir "${extra[@]}"
+    # extra is empty unless --dry-run was passed. Under `set -u`, "${extra[@]}"
+    # on an EMPTY array is an "unbound variable" error on bash <= 3.2 (macOS's
+    # stock /bin/bash, verified live on 3.2.57) — the ${extra[@]+"${extra[@]}"}
+    # idiom sidesteps it: expands to nothing when unset/empty, to the array
+    # otherwise. `setup.sh all` (no --dry-run) is the flagship quickstart
+    # command; it must not crash on a stock Mac (foreman review, BLOCKER).
+    cmd_maildir "${extra[@]+"${extra[@]}"}"
     echo
-    cmd_notmuch "${extra[@]}"
+    cmd_notmuch "${extra[@]+"${extra[@]}"}"
     echo
-    cmd_autoindex "${extra[@]}"
+    cmd_autoindex "${extra[@]+"${extra[@]}"}"
 }
 
 # ----------------------------------------------------------------------------
