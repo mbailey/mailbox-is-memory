@@ -1,0 +1,303 @@
+#!/usr/bin/env bash
+# session-mail-send — submit an RFC 5322 message for delivery to a recipient.
+# The durable async send half of the inter-agent mail pair (receive = session-wait).
+# SKB-860 (file-drop) → COMS-86 (self-gated postfix submission).
+#
+# Delivery is SELF-GATED per host (design §4): the script is fleet-shared and
+# ships everywhere at once, but postfix deploys per host, so each invocation
+# probes local readiness and picks a transport:
+#   * --filedrop, or SESSION_MAIL_TRANSPORT (smtp|filedrop) — explicit override.
+#   * else /etc/postfix/.session-mail-ready present AND `postfix status` running
+#     → SMTP: pipe the message to `sendmail -t -i` (postfix is the SINGLE writer,
+#     r05 — this script performs NO maildir write on the smtp path).
+#   * else → file-drop into the LOCAL maildir (retained until every host is
+#     migrated) with a load-bearing stderr notice: cross-host mail is NOT
+#     delivered from an unmigrated host — the drop is a local copy only.
+#
+#   session mail-send <to> --from <from> [--subject S] [--project P] [--task T] \
+#                     [--in-reply-to MSGID] [--root DIR] [--filedrop] [--quiet] \
+#                     <body...>
+#
+# EVERY send reports its transport + destination on stderr (COMS-95 2026-07-13).
+# Silence was the bug: a send to a box missing from postfix's virtual map printed
+# a Message-ID and "succeeded", then bounced minutes later ("unknown user") into
+# the SENDER's maildir, which nobody reads — so the failure was invisible. Two
+# rules now hold:
+#   1. PRE-FLIGHT (smtp, same-host recipients only): the recipient must resolve in
+#      postfix's virtual_mailbox_maps/virtual_alias_maps, or the send FAILS LOUDLY
+#      here rather than bouncing silently later. Cross-host recipients are exempt
+#      (postfix relays them; this host cannot know the remote's map).
+#   2. FILEDROP IS A BACKDOOR and says so, every time. It writes the maildir
+#      directly: postfix never sees the message — no logging, no cc to the
+#      principal, no cross-host delivery, and it bypasses any future content
+#      filtering (e.g. prompt-injection screening). Never chosen to route around a
+#      broken map; that is what the pre-flight failure is for. Opt in explicitly.
+# --quiet suppresses the success line (failures and filedrop warnings always print).
+#
+# Prints the Message-ID on STDOUT (callers + the two-phase receipt rule depend on
+# it); all reporting goes to stderr. Addresses fold to lowercase for path/lookup
+# resolution; display strings keep their case (§4/§5.7). File-drop root defaults
+# to ~/.mail/agents; override with --root or $SESSION_MAIL_ROOT.
+set -euo pipefail
+die() { echo "session-mail-send: $*" >&2; exit 2; }
+lc()  { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+ROOT="${SESSION_MAIL_ROOT:-$HOME/.mail/agents}"
+TO=""; FROM=""; SUBJECT="(no subject)"; PROJECT=""; TASK=""; IN_REPLY_TO=""; BODY=""
+SUPERSEDES=""   # set -u is on: every optional flag needs a default, or adding one flag
+                # breaks EVERY send that doesn't use it. Which is what happened, one
+                # message after shipping it. Caught by using it. 2026-07-13.
+FORCE_FILEDROP=0; QUIET=0
+
+[ $# -ge 1 ] || die "missing <to>  (usage: session mail-send <to> --from <from> <body...>)"
+case "$1" in -h|--help) sed -n '2,38p' "$0"; exit 0 ;; esac
+TO="$1"; shift
+# Flags are honoured ANYWHERE, before or after the body words (COMS-95 2026-07-13).
+# The old loop did `*) BODY="$*"; break`, so the first bare word swallowed the rest
+# of the line — and a flag typed after the body (`… --from mike "text" --filedrop`,
+# the way a human naturally types it) was SILENTLY IGNORED. Mike hit this within a
+# minute of --filedrop existing: the flag did nothing and the send failed with the
+# very error the flag was there to get past. Same disease as the bounce itself —
+# quietly doing something other than what you were told. Body words accumulate; a
+# literal `--` ends flag parsing for bodies that genuinely start with a dash.
+BODY_WORDS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --from)        FROM="$2"; shift 2 ;;
+    --subject)     SUBJECT="$2"; shift 2 ;;
+    --project)     PROJECT="$2"; shift 2 ;;
+    --task)        TASK="$2"; shift 2 ;;
+    --supersedes)  SUPERSEDES="$2"; shift 2 ;;
+    --in-reply-to) IN_REPLY_TO="$2"; shift 2 ;;
+    --root)        ROOT="$2"; shift 2 ;;
+    --filedrop)    FORCE_FILEDROP=1; shift ;;
+    --quiet)       QUIET=1; shift ;;
+    --)            shift; BODY_WORDS+=("$@"); break ;;
+    -*)            die "unknown flag: $1  (if this is body text, put it after a literal --)" ;;
+    *)             BODY_WORDS+=("$1"); shift ;;
+  esac
+done
+BODY="${BODY_WORDS[*]-}"
+[ -n "$TO" ]   || die "missing <to>"
+[ -n "$FROM" ] || die "missing --from"
+
+EPOCH="$(date +%s)"
+HOST="$(hostname -s)"
+RFC_DATE="$(date -R 2>/dev/null || date '+%a, %d %b %Y %H:%M:%S %z')"
+MSGID="<${EPOCH}.$$.${RANDOM}@${HOST}.session-mail>"
+UNIQUE="${EPOCH}.P$$R${RANDOM}.${HOST}"     # maildir unique-name convention
+SID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"; SID="${SID:0:8}"
+
+# Normalize a message-id to the RFC 5322 `msg-id` production: <id@domain>.
+#
+# Load-bearing, and the failure it prevents is SILENT (COMS-110, 2026-07-13).
+# In-Reply-To / References MUST be angle-bracketed; a bare `id@host` does not
+# match the original's `<id@host>` Message-ID, so the reply is delivered
+# successfully and then fails to thread — the send reports success, the
+# correction is orphaned, and nobody finds out until they follow a thread that
+# isn't there.
+#
+# The trap is a format disagreement between two tools in the same pipeline:
+# `notmuch search --output=messages` prints ids BARE (`id:1783881117.…@m5`),
+# while this script's own `Message-ID:` output prints them BRACKETED. Copy an id
+# out of a notmuch query — the obvious way to reply to something you just found —
+# and you get the broken form. So: accept either, emit the correct one.
+#
+# This matters more here than in ordinary mail: supersede-by-retag is only half
+# a discipline if the correction cannot be found from the message it corrects.
+normalize_msgid() {
+  local id="${1#<}"          # strip a leading  < if present
+  id="${id%>}"               # strip a trailing > if present
+  [ -n "$id" ] && printf '<%s>' "$id"
+}
+
+# Build the RFC 5322 message once; both transports consume it identically.
+# Display headers keep the caller's case (`foreman.COMS-86`); path/lookup
+# resolution folds to lowercase downstream (filedrop path, or postfix on smtp).
+build_message() {
+  echo "From: ${FROM}"
+  echo "To: ${TO}"
+  echo "Date: ${RFC_DATE}"
+  echo "Subject: ${SUBJECT}"
+  echo "Message-ID: ${MSGID}"
+  [ -n "$IN_REPLY_TO" ] && {
+    _irt="$(normalize_msgid "$IN_REPLY_TO")"
+    echo "In-Reply-To: ${_irt}"
+    echo "References: ${_irt}"
+  }
+  [ -n "$PROJECT" ] && echo "X-Project: ${PROJECT}"
+  [ -n "$TASK" ]    && echo "X-Task: ${TASK}"
+  # Supersedes: the supersede declared IN THE MESSAGE, machine-readably.
+  #
+  # The header is STANDARD, not ours: RFC 2156 defines `Supersedes: 1*msg-id`
+  # for email (replacing the older `Obsoletes:`), and RFC 5536 §3.2.12 defines
+  # it for netnews. We minted `X-Supersedes` on 2026-07-13, found the standard
+  # on the shelf the same night, and renamed. Messages sent during those hours
+  # carry the X- spelling forever (immutable); the post-new hook honours both.
+  #
+  # This is what makes supersede-by-retag survive a rebuild. notmuch tags live in a
+  # Xapian index that is, by design, a DERIVED artefact — throw it away and rebuild it
+  # from the maildir and the tags are gone. Measured, not assumed (2026-07-13): delete
+  # the index, `notmuch new`, and the `superseded` tag vanishes — at which point the
+  # current-truth query RESURRECTS THE FALSIFIED MEMORY as current. A memory system
+  # that can forget it was corrected is not a memory system.
+  #
+  # A prose subject ("SUPERSEDED: ...") and an In-Reply-To are not enough: no hook can
+  # act on them without guessing. The supersede has to be a fact IN the immutable
+  # message, so the tag can be re-derived from the mail and nothing but the mail.
+  #
+  # The tag is how you find it. The message is how you know it's true.
+  [ -n "$SUPERSEDES" ] && echo "Supersedes: $(normalize_msgid "$SUPERSEDES")"
+  [ -n "$SID" ]     && echo "X-Session-From: ${SID}"
+  echo "X-Machine: ${HOST}"
+  echo                       # blank line ends headers
+  echo "${BODY}"
+}
+
+# Per-host transport self-gate (design §4). Cheapest sufficient probe: the
+# readiness MARKER is written by the installer ONLY after the §4a delivery
+# proof passes, so marker-present ≡ this host is proven-migrated. Resolved
+# inline (not a subshell) so a bad override reaches die() at the top level.
+MODE=""
+[ "$FORCE_FILEDROP" -eq 1 ] && MODE=filedrop     # --filedrop: explicit opt-in, wins
+case "${SESSION_MAIL_TRANSPORT:-}" in
+  smtp|filedrop) [ -n "$MODE" ] || MODE="$SESSION_MAIL_TRANSPORT" ;;
+  "")            ;;
+  *)             die "invalid SESSION_MAIL_TRANSPORT: ${SESSION_MAIL_TRANSPORT} (want smtp|filedrop)" ;;
+esac
+if [ -z "$MODE" ]; then
+  # Liveness probe MUST be uid-agnostic: `postfix status` is root-only on macOS
+  # (exits 1 SILENTLY for uid 501), which degraded every agent send on a proven-
+  # migrated host to filedrop — killing cross-host agent mail (found live,
+  # COMS-95 2026-07-13). `postqueue -p` is the correct probe: setgid postdrop,
+  # works for any uid, talks to the running daemon (rc=0 iff mail system is up).
+  if [ -f /etc/postfix/.session-mail-ready ] && postqueue -p >/dev/null 2>&1; then
+    MODE=smtp
+  else
+    MODE=filedrop
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# PRE-FLIGHT DELIVERABILITY (smtp, same-host recipients only). COMS-95.
+# postfix's virtual_mailbox_maps is ENUMERATED (no catch-all regexp), so a box
+# that exists on disk but is missing from the map is "unknown user": sendmail
+# accepts the message, then postfix bounces it to the SENDER's maildir, which
+# nobody reads. That silent bounce is the bug we are killing. Check before we
+# submit, and fail here — loudly — instead.
+#
+# Scope: only recipients that resolve to THIS host. A cross-host recipient is
+# relayed by postfix and this host cannot know the remote's map, so it is exempt.
+# ---------------------------------------------------------------------------
+rcpt_is_local() {                                  # unqualified, or @thishost
+  case "$1" in
+    *@*) local h; h="$(lc "${1#*@}")"
+         case "$h" in "$(lc "$HOST")"|"$(lc "$HOST")".*) return 0 ;; *) return 1 ;; esac ;;
+    *)   return 0 ;;
+  esac
+}
+
+# Resolve <to> the way postfix will: strip the +extension (recipient_delimiter)
+# and qualify a bare localpart with this host, then probe every virtual map.
+lookup_addr() {
+  local lp="${TO%%@*}"; lp="${lp%%+*}"             # strip +ext (recipient_delimiter)
+  case "$TO" in *@*) printf '%s@%s' "$(lc "$lp")" "$(lc "${TO#*@}")" ;;
+                  *) printf '%s@%s' "$(lc "$lp")" "$(lc "$HOST")" ;; esac
+}
+
+recipient_deliverable() {
+  local addr maps m
+  addr="$(lookup_addr)"
+  # Ask postfix for its own map list — never hardcode the paths.
+  maps="$(postconf -h virtual_mailbox_maps virtual_alias_maps 2>/dev/null | tr ',' ' ')"
+  [ -n "$maps" ] || return 0                       # can't introspect → don't block
+  for m in $maps; do
+    postmap -q "$addr" "$m" >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+
+if [ "$MODE" = smtp ] && rcpt_is_local "$TO" && command -v postmap >/dev/null 2>&1; then
+  if ! recipient_deliverable; then
+    addr="$(lookup_addr)"
+    cat >&2 <<EOF
+session-mail-send: REFUSING TO SEND — '${addr}' is not deliverable on this host.
+
+  postfix has no route for it: the recipient is absent from virtual_mailbox_maps,
+  so submitting would "succeed" here and then BOUNCE ("unknown user") into the
+  SENDER's maildir minutes later, where nobody would ever see it.
+
+  The mailbox directory may well exist — a box is only DELIVERABLE once it is in
+  the postfix map. A listener can be armed on a box that no mail can reach
+  (\`session mail wait\` calls it "watch-only"): it looks healthy and hears nothing.
+
+  Fix (in order):
+    1. Regenerate the map:  ~/.mail/.postfix/vmailbox-gen --root ~/.mail
+       If that hangs or fails, the map is frozen — see the session skill,
+       references/mail-troubleshooting.md ("map frozen / watch-only box").
+    2. Verify:              postmap -q '${addr}' hash:/etc/postfix/agents.d/vmailbox
+    3. Local-only, right now, deliberately:  re-run with --filedrop
+       (bypasses postfix entirely — read what that costs you before you do it).
+EOF
+    exit 3
+  fi
+fi
+
+case "$MODE" in
+  smtp)
+    # SINGLE-WRITER (r05): submit only — postfix's virtual(8) does every maildir
+    # write. No mkdir, no tmp/new dance here. Unqualified <to> is qualified to
+    # the local host by postfix; cross-host callers pass <to>@host.
+    build_message | /usr/sbin/sendmail -t -i -f "${FROM}"
+    [ "$QUIET" -eq 1 ] || echo "session-mail-send: sent via smtp (postfix) → $(lookup_addr)" >&2
+    ;;
+  filedrop)
+    # Retained fallback until the all-hosts-migrated gate closes (design §4/§4a
+    # step 6). Same-host-only by nature: it writes the LOCAL ~/.mail tree, so a
+    # cross-host send degrades to a local copy no remote agent reads — hence the
+    # load-bearing notice below.
+    # The LOCAL box name is the bare mailbox: strip any @host qualifier and any
+    # +extension (parity with postfix recipient_delimiter=+ base-box delivery).
+    # Pre-fix, a qualified <to> minted a junk `agents/<name>@<host>/` maildir,
+    # which vmailbox-gen's sanitizer would then alias into a bogus map key
+    # (`memorym5@host`) on the next regen (found live, COMS-95 2026-07-13).
+    LOCALPART="${TO%%@*}"; LOCALPART="${LOCALPART%%+*}"
+    MBOX="${ROOT}/$(lc "$LOCALPART")"
+    mkdir -p "${MBOX}/tmp" "${MBOX}/new" "${MBOX}/cur"
+    build_message > "${MBOX}/tmp/${UNIQUE}"
+    sync                                                   # best-effort durability
+    mv "${MBOX}/tmp/${UNIQUE}" "${MBOX}/new/${UNIQUE}"     # atomic delivery
+    # The load-bearing degradation notice is CROSS-HOST ONLY (design §4, do-006
+    # n2 fix): only a host-addressed recipient (<name>@host) is a cross-host send
+    # that filedrop CANNOT deliver — it wrote a junk local copy no remote agent
+    # reads. An UNqualified <to> (foreman.COMS-86) is a same-host send, for which
+    # filedrop IS the correct local delivery — no degradation, so no notice (the
+    # pre-fix unconditional notice cried wolf on every same-host fallback).
+    # …and only when the qualifier names a DIFFERENT host: <name>@<thishost>
+    # (short or fqdn form) is a same-host send for which filedrop IS correct
+    # local delivery — warning on it cried wolf (COMS-95 2026-07-13).
+    case "$TO" in
+      *@*)
+        RCPT_HOST="$(lc "${TO#*@}")"; THIS_HOST="$(lc "$HOST")"
+        case "$RCPT_HOST" in
+          "$THIS_HOST"|"$THIS_HOST".*) : ;;
+          *) echo "session-mail-send: cross-host mail NOT delivered from this host until migrated (wrote local copy to ${MBOX}/new/${UNIQUE})" >&2 ;;
+        esac ;;
+    esac
+
+    # FILEDROP ALWAYS ANNOUNCES ITSELF (COMS-95 2026-07-13, Mike's rule). It is a
+    # backdoor around the mail system, and a silent backdoor is the dangerous kind.
+    # Say so on every single drop — whether opted into or fallen back to.
+    echo "session-mail-send: ⚠  FILEDROP — POSTFIX BYPASSED. Wrote the maildir directly:" >&2
+    echo "session-mail-send:      ${MBOX}/new/${UNIQUE}" >&2
+    echo "session-mail-send:    This message was NOT logged by the mail system, NOT cc'd to the" >&2
+    echo "session-mail-send:    principal, cannot cross hosts, and skipped any content filtering." >&2
+    if [ "$FORCE_FILEDROP" -eq 1 ] || [ "${SESSION_MAIL_TRANSPORT:-}" = filedrop ]; then
+      echo "session-mail-send:    (explicitly requested)" >&2
+    else
+      echo "session-mail-send:    (fell back: this host is not postfix-ready — no /etc/postfix/.session-mail-ready, or the mail system is down)" >&2
+    fi
+    ;;
+esac
+
+echo "${MSGID}"

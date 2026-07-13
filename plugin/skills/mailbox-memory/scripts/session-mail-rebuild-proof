@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+# session-mail-rebuild-proof — destroy the memory index and prove the memory survives.
+#
+# THE EXPERIMENT THAT COULD FALSIFY CLAIM #2.
+#
+# The strongest attack on supersede-by-retag is this:
+#
+#     "Your headline discipline is stored in a cache. notmuch tags live in a Xapian
+#      index that is, by design, a derived artefact — you tell us so yourself. Blow it
+#      away, rebuild from the maildir, and your corrections are GONE. So your immutable
+#      store is not self-sufficient: your truth lives in a rebuildable index that you
+#      admit is not truth."
+#
+# On 2026-07-13 we ran it. THE ATTACK LANDED. We deleted the index, ran `notmuch new`,
+# and the `superseded` tag vanished — at which point the current-truth query
+#
+#     tag:memory AND NOT tag:superseded
+#
+# RESURRECTED A FALSIFIED MEMORY and served it as fact: a root-cause diagnosis we had
+# already disproved hours earlier came back as current truth. A memory system that can
+# forget it was corrected is not a memory system.
+#
+# The fix was not to argue. It was to make the supersede a fact IN THE IMMUTABLE MESSAGE
+# (`Supersedes:` — the standard header, RFC 2156 / RFC 5536; pre-rename messages carry
+# `X-Supersedes:` and the hook honours both — written by `session mail send
+# --supersedes`), and re-derive the tag
+# from the mail in the notmuch post-new hook. The tag became a projection of the record
+# rather than the record itself.
+#
+#   The tag is how you find it. The message is how you know it's true.
+#
+# This script re-runs the whole experiment, end to end, in about two seconds. It is
+# deliberately DESTRUCTIVE of the index (that is the point) and deliberately SAFE with
+# the tags (it dumps them first and restores on exit, even on failure).
+#
+# Run it in front of anyone who says the mailbox is not a real memory store.
+#
+#   session mail rebuild-proof [--keep-going]
+#
+# Exit 0 = the memory survived the loss of its own index.
+# Exit 1 = it did not. That is a real falsification; do not paper over it.
+
+set -uo pipefail
+
+NOTMUCH="${NOTMUCH_BIN:-/opt/homebrew/bin/notmuch}"
+command -v "$NOTMUCH" >/dev/null 2>&1 || NOTMUCH=notmuch
+export NOTMUCH_CONFIG="${NOTMUCH_CONFIG:-$HOME/.notmuch-config}"
+
+DB="$("$NOTMUCH" config get database.path 2>/dev/null)"
+[ -n "$DB" ] || { echo "rebuild-proof: cannot find database.path" >&2; exit 2; }
+XAPIAN="$DB/.notmuch/xapian"
+
+BAKDIR="$HOME/.cora/notmuch-backups"
+mkdir -p "$BAKDIR"
+BAK="$BAKDIR/rebuild-proof-$(date +%Y%m%d-%H%M%S).bak"
+
+green() { printf '\033[32m%s\033[0m\n' "$*"; }
+red()   { printf '\033[31m%s\033[0m\n' "$*"; }
+bold()  { printf '\033[1m%s\033[0m\n' "$*"; }
+
+restore_tags() {
+  [ -f "$BAK" ] || return 0
+  "$NOTMUCH" restore --input="$BAK" 2>/dev/null && \
+    echo "  tags restored from $BAK"
+}
+trap restore_tags EXIT
+
+bold "1. Back up every tag (so this is safe to run for real)"
+"$NOTMUCH" dump > "$BAK" 2>/dev/null
+echo "   $(wc -l < "$BAK" | tr -d ' ') tag records → $BAK"
+
+# Find a superseded message to use as the witness. Any will do; we want a real one.
+WITNESS="$("$NOTMUCH" search --output=messages 'tag:superseded' 2>/dev/null | head -1)"
+if [ -z "$WITNESS" ]; then
+  echo
+  echo "rebuild-proof: no superseded message in this corpus — nothing to prove."
+  echo "  Supersede something first:  session mail send <box> --supersedes <msgid> ..."
+  exit 2
+fi
+echo
+bold "2. Witness — a memory we corrected"
+echo "   $WITNESS"
+echo "   subject: $("$NOTMUCH" show --format=text --body=false "$WITNESS" 2>/dev/null | sed -n 's/^Subject: //p' | head -1 | cut -c1-66)"
+echo "   tags:    [$("$NOTMUCH" search --output=tags "$WITNESS" 2>/dev/null | tr '\n' ' ')]"
+
+echo
+bold "3. Strip the tag by hand — so nothing is left for us to cheat with"
+"$NOTMUCH" tag -superseded -- "$WITNESS"
+echo "   tags:    [$("$NOTMUCH" search --output=tags "$WITNESS" 2>/dev/null | tr '\n' ' ')]"
+
+echo
+bold "4. DESTROY THE ENTIRE INDEX"
+rm -rf "$XAPIAN"
+echo "   rm -rf $XAPIAN"
+[ -d "$XAPIAN" ] && { red "   index still present — aborting"; exit 2; }
+echo "   gone. The only thing left is mail on disk."
+
+echo
+bold "5. Rebuild from the maildir alone"
+"$NOTMUCH" new 2>&1 | sed 's/^/   /'
+
+echo
+bold "6. Did the correction survive?"
+TAGS="$("$NOTMUCH" search --output=tags "$WITNESS" 2>/dev/null | tr '\n' ' ')"
+echo "   tags:    [$TAGS]"
+
+rc=0
+if printf '%s' "$TAGS" | grep -q superseded; then
+  green "   ✅ 'superseded' was RE-DERIVED FROM THE MAIL."
+  green "      The index was destroyed. The correction came back anyway."
+else
+  red   "   ❌ 'superseded' is GONE."
+  red   "      The falsified memory is now current truth again. Claim #2 is FALSIFIED."
+  rc=1
+fi
+
+echo
+bold "7. And is the wrong belief still there — preserved, not deleted?"
+if [ -n "$("$NOTMUCH" search --output=messages "$WITNESS" 2>/dev/null)" ]; then
+  green "   ✅ yes — still on disk, byte for byte. We corrected it; we did not erase it."
+else
+  red   "   ❌ the message is gone. That is worse."
+  rc=1
+fi
+
+echo
+if [ "$rc" -eq 0 ]; then
+  bold "RESULT: the memory survived the loss of its own index."
+  echo "  The tag is how you find it. The message is how you know it's true."
+else
+  bold "RESULT: FALSIFIED. Do not publish claim #2 until this passes."
+fi
+exit "$rc"

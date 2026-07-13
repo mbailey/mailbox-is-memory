@@ -1,0 +1,306 @@
+#!/usr/bin/env bash
+# session-mail-wait — block until a matching message lands in <me>'s maildir
+# new/, claim it (move new/ -> cur/ with the :2,S Seen flag = exactly-once),
+# print it. The receive half of the inter-agent mail pair (send = session
+# mail-send). SKB-860. Designed for the harness `run_in_background` re-invoke:
+# run it backgrounded and the agent is woken when a message arrives and it exits.
+#
+#   session mail wait <me> [--timeout S] [--from MATCH] [--subject-match RE] \
+#                     [--peek] [--root DIR] [--poll INTERVAL]
+#
+# Wait mechanism: blocks on fswatch (FSEvents on macOS / inotify on Linux) when
+# available — near-zero idle cost, no busy-poll. Falls back to a poll loop if
+# fswatch is missing or --poll is given. The contract is identical either way:
+#   Exit 0 = delivered a message (printed to stdout); 124 = --timeout.
+# The :2,S flag is what notmuch (synchronize_flags=true) reads as "seen".
+#
+# Root defaults to ~/.mail/agents (the live agent-mail tree under Mike's real
+# notmuch-indexed maildir); override with --root or $SESSION_MAIL_ROOT.
+set -euo pipefail
+die() { echo "session mail wait: $*" >&2; exit 2; }
+lc()  { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+ROOT="${SESSION_MAIL_ROOT:-$HOME/.mail/agents}"
+ME=""; TIMEOUT=30; FROM_MATCH=""; SUBJ_MATCH=""; PEEK=0; INTERVAL=0.2; FORCE_POLL=0
+
+[ $# -ge 1 ] || die "missing <me>  (usage: session mail wait <me> [--from M] [--timeout S] [--root DIR])"
+case "$1" in -h|--help) sed -n '2,21p' "$0"; exit 0 ;; esac
+ME="$1"; shift
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --timeout)       TIMEOUT="$2"; shift 2 ;;
+    --from)          FROM_MATCH="$2"; shift 2 ;;
+    --subject-match) SUBJ_MATCH="$2"; shift 2 ;;
+    --root)          ROOT="$2"; shift 2 ;;
+    --peek)          PEEK=1; shift ;;
+    --poll)          INTERVAL="$2"; FORCE_POLL=1; shift 2 ;;
+    -h|--help)       sed -n '2,21p' "$0"; exit 0 ;;
+    *)               die "unknown flag: $1" ;;
+  esac
+done
+
+# Fold the mailbox path to lowercase on arm (COMS-86 §4/§5.7): the caller keeps
+# typing `foreman.COMS-86`, but the watched directory is the canonical lowercase
+# form — matching the folded path postfix delivers to.
+#
+# PLUS-ADDRESSING (COMS-95 2026-07-13). <me> may carry a +extension —
+# `cora+cf138988` (a session) or `cora+coms-110` (a purpose). postfix strips the
+# extension before the map lookup, so every extension of a role delivers into the
+# ONE shared role maildir and needs NO map entry of its own: the map stays one
+# row per ROLE no matter how many sessions run, and — because nothing needs
+# provisioning — direct session addressing works even while the map dir is wedged.
+ME_BASE="$(lc "${ME%%+*}")"                          # cora+cf138988 -> cora
+ME_EXT="$(lc "${ME#"${ME%%+*}"}")"; ME_EXT="${ME_EXT#+}"   # -> cf138988 (empty if bare role)
+MY_SID="${CLAUDE_CODE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"; MY_SID="$(lc "${MY_SID:0:8}")"
+MBOX="${ROOT}/${ME_BASE}"                            # always the BASE box
+mkdir -p "${MBOX}/tmp" "${MBOX}/new" "${MBOX}/cur"
+
+# Provisioning = mkdir + map entry (COMS-86 §4b/§5.8, incident-2 fix). The mkdir
+# above makes the box WATCHABLE; this makes it DELIVERABLE. postfix's
+# virtual_mailbox_maps is an enumerated user-owned map (regexp $1 is forbidden in
+# path-result maps — the old catch-all was dead), so a freshly-armed box needs its
+# entry generated or mail to it bounces. vmailbox-gen rebuilds that map from the
+# tree (single source of truth) + user postmap. Best-effort: on an unmigrated host
+# the generator is absent (setup-mail.sh --apply installs it), so this is a no-op
+# and NEVER blocks arming — the box stays watchable either way.
+# Is <me> reachable — i.e. does postfix have a route to this box? This, not the
+# generator's exit code, is the property that matters. They come apart: with the
+# map dir wedged the generator ALWAYS fails, yet every already-mapped box
+# (cora, mike, memory) still delivers perfectly. Gating on regen-failure cried
+# wolf at every healthy agent on the host; gating on reachability speaks only to
+# the agent that is actually deaf.
+# Returns 0 = reachable, 1 = not, 2 = can't tell (unmigrated host — not an error).
+mailbox_reachable() {
+  local addr maps m
+  command -v postmap  >/dev/null 2>&1 || return 2
+  command -v postconf >/dev/null 2>&1 || return 2
+  addr="$(lc "$ME")@$(hostname -s | tr '[:upper:]' '[:lower:]')"
+  maps="$(postconf -h virtual_mailbox_maps virtual_alias_maps 2>/dev/null | tr ',' ' ')"
+  [ -n "$maps" ] || return 2
+  for m in $maps; do
+    postmap -q "$addr" "$m" >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+
+provision_mailbox_map() {
+  local mailroot gen gpid wpid rc
+
+  # FAST PATH (COMS-95 2026-07-13): if this box is ALREADY in the map, there is
+  # nothing to provision — skip the generator entirely. This is the overwhelmingly
+  # common case (every established agent), and it matters because on a host with a
+  # WEDGED map dir the generator hangs and burns the full 10s watchdog on EVERY arm,
+  # fleet-wide, for no benefit whatsoever. Measured: `--timeout 5` took 15s. Check
+  # first, generate only when actually needed.
+  mailbox_reachable && return 0
+
+  mailroot="$(dirname "$ROOT")"                       # ~/.mail (ROOT = ~/.mail/agents)
+  gen="$(command -v vmailbox-gen 2>/dev/null || true)"
+  [ -n "$gen" ] || gen="$mailroot/.postfix/vmailbox-gen"
+  [ -x "$gen" ] || return 0                            # not migrated -> watch-only, fine
+
+  # BOUNDED best-effort: a wedged map dir (writes to /etc/postfix/agents.d hang
+  # in-kernel, system-wide) turned this call into a forever-hang BEFORE the watch
+  # loop — the agent looked armed but was deaf, and even --timeout never fired.
+  # Provisioning must NEVER block arming: give the generator 10s, then kill it and
+  # arm watch-only.
+  # NOT `mktemp -t NAME`: that is a BSD-ism. GNU coreutils (first on PATH on m5)
+  # reads -t as "use TMPDIR" and demands trailing X's — "too few X's in template"
+  # — which under `set -e` killed the ARM ITSELF, i.e. the loud-failure guard broke
+  # the very thing it was guarding. Explicit template = portable on both.
+  local errlog; errlog="$(mktemp "${TMPDIR:-/tmp}/vmailbox-gen-err.XXXXXX")"
+  "$gen" --root "$mailroot" >/dev/null 2>"$errlog" &
+  gpid=$!
+  ( sleep 10; kill "$gpid" 2>/dev/null ) &
+  wpid=$!
+  wait "$gpid" 2>/dev/null || true
+  kill "$wpid" 2>/dev/null || true
+  wait "$wpid" 2>/dev/null || true
+
+  # LOUD, NOT SILENT. The old code swallowed the generator's stderr, so an agent
+  # whose box never made it into the postfix map armed happily and sat there DEAF:
+  # watching a maildir nothing could be delivered to, while every sender got an
+  # "unknown user" bounce they never read. "Armed but unreachable" must be
+  # impossible to miss — it is exactly what cost us a live super
+  # (super.of-tpp-infra, 2026-07-13).
+  # `rc=0; cmd || rc=$?` — NOT `cmd; rc=$?`, which trips `set -e` and kills the
+  # script the moment the box is unreachable, i.e. exactly when the warning below
+  # is the thing we most need to print.
+  rc=0; mailbox_reachable || rc=$?
+  if [ "$rc" -eq 1 ]; then
+    {
+      echo "session mail wait: ⚠  '$(lc "$ME")@$(hostname -s)' IS NOT DELIVERABLE — you are armed WATCH-ONLY."
+      echo "session mail wait:    You are LISTENING, but postfix has no route to this box, so"
+      echo "session mail wait:    nothing can ever arrive. Anyone who mails you gets an 'unknown"
+      echo "session mail wait:    user' bounce — into THEIR mailbox, so neither of you notices."
+      [ -s "$errlog" ] && sed 's/^/session mail wait:    gen: /' "$errlog"
+      echo "session mail wait:    Fix: run '$gen --root $mailroot' and read what it says."
+      echo "session mail wait:    If it hangs, the map is frozen — see the session skill,"
+      echo "session mail wait:    references/mail-troubleshooting.md."
+    } >&2
+  fi
+  rm -f "$errlog"
+}
+
+# Sibling guard to the one above, and it exists for the same reason: an armed listener
+# that can never fire must SAY SO, not time out quietly. Unreachable box = deaf by
+# routing; unmatchable pattern = deaf by filter. Both look identical from outside
+# (silence, then 124), and both used to be silent. SKB-971.
+#
+# We cannot decide in general whether a regex will ever match a future subject. We CAN
+# reject the two ways it is guaranteed not to:
+#   * the pattern is not a valid regex at all — grep exits 2;
+#   * the pattern cannot match its own obvious intent, i.e. an anchored pattern that
+#     fails to match the very string it was written to match.
+# and we ALWAYS announce the effective filter, so a human reading the log can see what
+# the listener is actually listening for.
+regex_ok() {   # regex_ok <grep-flags> <regex>  → 1 if grep rejects it outright
+  local rc=0
+  printf 'x\n' | grep $1 -q -- "$2" >/dev/null 2>&1 || rc=$?
+  [ "$rc" -ge 2 ] && return 1   # >=2 is "bad regex"; 1 is just "didn't match 'x'", fine
+  return 0
+}
+
+validate_filters() {
+  [ -n "$SUBJ_MATCH" ] && ! regex_ok -iE "$SUBJ_MATCH" && \
+    die "--subject-match: '$SUBJ_MATCH' is not a valid regex — refusing to arm a listener that can never match."
+  [ -n "$FROM_MATCH" ] && ! regex_ok -i "$FROM_MATCH" && \
+    die "--from: '$FROM_MATCH' is not a valid regex — refusing to arm a listener that can never match."
+
+  if [ -n "$SUBJ_MATCH" ] || [ -n "$FROM_MATCH" ]; then
+    {
+      echo "session mail wait: filter active — you will ONLY be woken by messages matching:"
+      [ -n "$SUBJ_MATCH" ] && echo "session mail wait:    Subject =~ /${SUBJ_MATCH}/i   (matched against the subject VALUE, so ^ means 'starts with')"
+      [ -n "$FROM_MATCH" ] && echo "session mail wait:    From    =~ /${FROM_MATCH}/i"
+      echo "session mail wait:    Everything else is left in new/ for another listener. If you are"
+      echo "session mail wait:    expecting mail and nothing arrives, SUSPECT THIS FILTER FIRST."
+    } >&2
+  fi
+}
+provision_mailbox_map
+validate_filters
+
+# Which +extension was this message actually addressed to? postfix preserves the
+# ORIGINAL envelope recipient (enable_original_recipient=yes) — `To:` is just what
+# the sender typed and can be anything, so prefer the envelope headers.
+# Echoes the extension, or "" for bare-role mail.
+recipient_ext() {
+  local hdr rcpt
+  hdr="$(awk 'NF==0{exit} {print}' "$1")"
+  rcpt="$(printf '%s\n' "$hdr" | grep -im1 -E '^(X-Original-To|Delivered-To|To):' \
+          | sed -E 's/^[^:]+:[[:space:]]*//; s/.*<([^>]*)>.*/\1/; s/[[:space:]]*$//')"
+  rcpt="$(lc "${rcpt%%@*}")"                       # localpart only
+  case "$rcpt" in *+*) printf '%s' "${rcpt#*+}" ;; *) printf '' ;; esac
+}
+
+# THE CLAIM RULE (COMS-95 2026-07-13). A maildir claim is exactly-once, so two
+# listeners on one role box race for every message — and today the loser was Mike:
+# he addressed a message to a specific session and a DIFFERENT Cora ate it, because
+# nothing ever looked at who it was for.
+#
+#   * bare-role mail (no extension)  -> ANY role listener may claim. This is the
+#     point of role addressing: a fresh session picks up the role's mail and
+#     nothing is lost when one dies. Keep it.
+#   * addressed to MY extension       -> mine.
+#   * bare-role listener + extension == my session id -> mine ("listen for both":
+#     one listener covers the role AND its own direct address).
+#   * SOMEONE ELSE'S extension        -> NOT MINE. Leave it in new/, unclaimed, for
+#     the session it belongs to. This is the whole safety property; without it,
+#     direct addressing is decorative.
+#
+# Unparseable recipient -> treat as role mail and claim, so a malformed message is
+# never stranded forever.
+addressed_to_me() {
+  local ext; ext="$(recipient_ext "$1")"
+  # Arming WITH an extension (`wait cora+779c1d3c`) is STRICT: only that extension,
+  # never bare-role mail. Asking for one address should give you that address and
+  # nothing else. The first cut let an extension-armed listener also swallow role
+  # mail; 779c1d3c hit it immediately — it ate its OWN handover twin, twice, and had
+  # to restore it to new/ by hand. "Listen for both" is what the BARE-role arm is
+  # for (role mail + your own session id, below) — so both intents are expressible
+  # and neither needs a flag.
+  if [ -n "$ME_EXT" ]; then
+    [ "$ext" = "$ME_EXT" ] && return 0 || return 1
+  fi
+  [ -z "$ext" ] && return 0                        # bare-role arm: role mail is fair game
+  [ -n "$MY_SID" ] && [ "$ext" = "$MY_SID" ] && return 0   # …and mail for my own session
+  return 1                                          # someone else's — hands off
+}
+
+# Match the caller's pattern against the header's VALUE — never against the whole
+# header line.
+#
+# SKB-971. The old form spliced the caller's regex into the middle of another one:
+#
+#     grep -iEq "^Subject:.*${SUBJ_MATCH}"
+#
+# so a perfectly reasonable anchored pattern — `--subject-match '^READER'`, meaning
+# "subject STARTS WITH READER", exactly what the flag name promises — became
+#
+#     ^Subject:.*^READER
+#
+# a `^` in the middle of a pattern. It matches NOTHING. grep does not error; it just
+# returns 1, every time, for every message, forever. The listener then sits armed and
+# deaf and finally exits 124 — **indistinguishable from "no mail arrived"**. It was
+# found in the act of promising a human the channel was listening for him.
+#
+# This is the substrate's first law in miniature: a listener that cannot fail loudly is
+# a lie. So: extract the value, match against the value. An anchor now means what the
+# caller meant by it, and there is no second pattern for theirs to collide with.
+header_value() {   # header_value <headers> <name>
+  printf '%s\n' "$1" | sed -n "s/^[[:space:]]*$2:[[:space:]]*//Ip" | head -1
+}
+
+header_match() {
+  local f="$1" hdr
+  addressed_to_me "$f" || return 1
+  hdr="$(awk 'NF==0{exit} {print}' "$f")"
+  [ -n "$FROM_MATCH" ] && { header_value "$hdr" From    | grep -iq  -- "$FROM_MATCH" || return 1; }
+  [ -n "$SUBJ_MATCH" ] && { header_value "$hdr" Subject | grep -iEq -- "$SUBJ_MATCH" || return 1; }
+  return 0
+}
+
+# Scan new/ once. On the first matching message: claim it (new->cur with :2,S,
+# the atomic rename = exactly-once) or --peek it, print to stdout, and exit 0.
+# Returns 1 if nothing matched (so callers must use `|| true` under `set -e`).
+scan_and_claim() {
+  local msg src dst
+  for msg in $(ls -1 "${MBOX}/new" 2>/dev/null | sort); do
+    src="${MBOX}/new/${msg}"
+    [ -f "$src" ] || continue
+    header_match "$src" || continue
+    if [ "$PEEK" -eq 1 ]; then cat "$src"; exit 0; fi
+    dst="${MBOX}/cur/${msg}:2,S"
+    if mv "$src" "$dst" 2>/dev/null; then cat "$dst"; exit 0; fi  # claim → exactly-once
+  done
+  return 1
+}
+
+DEADLINE=$(( $(date +%s) + TIMEOUT ))
+
+# --- fswatch path (event-driven, near-zero idle cost) -----------------------
+if [ "$FORCE_POLL" -eq 0 ] && command -v fswatch >/dev/null 2>&1; then
+  # Start the watcher FIRST so no event is missed in the window between the
+  # initial scan and the watch beginning. -o coalesces a burst into one line.
+  coproc FSW { fswatch -o --latency 0.2 "${MBOX}/new" 2>/dev/null; }
+  cleanup() { [ -n "${FSW_PID:-}" ] && kill "$FSW_PID" 2>/dev/null || true; }
+  trap cleanup EXIT
+  scan_and_claim || true        # catch anything already waiting / landed during startup
+  while :; do
+    remaining=$(( DEADLINE - $(date +%s) ))
+    [ "$remaining" -le 0 ] && break
+    if read -r -t "$remaining" _ <&"${FSW[0]}"; then
+      scan_and_claim || true     # an event fired — rescan + claim
+    else
+      break                      # read timed out (deadline) or fswatch ended
+    fi
+  done
+  echo "session mail wait: timeout" >&2; exit 124
+fi
+
+# --- poll fallback (no fswatch installed, or --poll forced) -----------------
+while :; do
+  scan_and_claim || true
+  [ "$(date +%s)" -ge "$DEADLINE" ] && { echo "session mail wait: timeout" >&2; exit 124; }
+  sleep "$INTERVAL"
+done

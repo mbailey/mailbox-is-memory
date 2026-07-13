@@ -1,0 +1,75 @@
+#!/bin/sh
+# post-new — auto-classification of fleet mail at index time.
+# Installed 2026-07-13 (COMS-95 night shift). Runs after every `notmuch new`
+# indexes new messages; retags are batch + idempotent (the `not tag:` guards
+# keep re-runs cheap).
+#
+# Rules:
+#   +agent       all agent-to-agent mail (path:agents/**)
+#   +memory      the fleet memory mailbox (agents/memory/**) — episodic memory
+#   +superseded  RE-DERIVED FROM THE MAIL — see the long note below. This is the
+#                one that makes the memory survive losing its own index.
+#
+# Absolute binary paths throughout: this hook also runs under launchd
+# (com.failmode.notmuch-new), whose PATH has no /opt/homebrew/bin (CA-68 class),
+# and whose `grep` must not be whatever shim happens to be on an agent's PATH
+# (an interactive shell here resolves `grep` to ugrep, which has different regex
+# semantics — that cost us a deaf listener tonight, SKB-971).
+NOTMUCH=/opt/homebrew/bin/notmuch
+GREP=/usr/bin/grep
+
+$NOTMUCH tag --batch <<'EOF'
++agent -- path:agents/** and not tag:agent
++memory -- path:agents/memory/** and not tag:memory
+EOF
+
+# ---------------------------------------------------------------------------
+# RE-DERIVE `superseded` FROM THE MESSAGES THEMSELVES
+#
+# Why this exists — COMS-104 §7 limit 2. Measured on 2026-07-13, not assumed:
+#
+#   notmuch tags live in a Xapian index, and that index is a DERIVED artefact.
+#   You are meant to be able to delete it and rebuild from the maildir. We did.
+#   `rm -rf xapian && notmuch new` — and the `superseded` tag was GONE, at which
+#   point the current-truth query
+#
+#       tag:memory AND NOT tag:superseded
+#
+#   RESURRECTED A FALSIFIED MEMORY and served it as fact: "wedge status:
+#   PERSISTS — reboot or root autopsy needed", a diagnosis we had already
+#   disproved hours earlier.
+#
+#   A memory system that can forget it was corrected is not a memory system.
+#   That is a straight falsification of supersede-by-retag — the paper's claim
+#   #2 — and the strongest attack available on it. So we close it, rather than
+#   argue with it.
+#
+# The rule this enforces: A SUPERSEDE IS ONLY REAL IF IT IS DECLARED IN AN
+# IMMUTABLE MESSAGE. A prose subject ("SUPERSEDED: …") and an In-Reply-To are
+# not enough — no hook can act on those without guessing. `session mail send
+# --supersedes <msgid>` writes a `Supersedes:` header into the message (the
+# STANDARD one: RFC 2156 for email, RFC 5536 §3.2.12 for netnews); this hook
+# reads those headers back out of the maildir and re-applies the tag. Messages
+# from the first hours of 2026-07-13 carry the pre-rename `X-Supersedes:`
+# spelling — immutable, so this hook honours BOTH forever.
+#
+#   The tag is how you find it. The message is how you know it's true.
+#
+# The tag is now a PROJECTION of the mail, rebuildable from nothing but the
+# messages on disk. Delete the whole index and every correction comes back.
+#
+# Idempotent. Cost: one `grep -l` pass over the corpus per run (~1.4k messages
+# today, sub-second). If the corpus grows large enough for that to hurt, index
+# the header instead (`notmuch config set index.header.Supersedes Supersedes`)
+# and query it — same semantics, no file scan.
+$NOTMUCH search --output=files '*' 2>/dev/null \
+  | tr '\n' '\0' \
+  | xargs -0 $GREP -l -i -E -m1 '^(x-)?supersedes:' 2>/dev/null \
+  | while read -r f; do
+      sup=$(awk 'NF==0{exit} /^([Xx]-)?[Ss][Uu][Pp][Ee][Rr][Ss][Ee][Dd][Ee][Ss]:/{sub(/^[^:]*:[ \t]*/,""); print; exit}' "$f" \
+            | tr -d '<> \r\t')
+      [ -n "$sup" ] || continue
+      $NOTMUCH tag +superseded -- "id:$sup" 2>/dev/null
+    done
+
+exit 0

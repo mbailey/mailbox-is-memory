@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# session mail — inter-agent maildir mail: a durable, async channel between
+# agent sessions (and Mike), alongside the live-pane `session send`. SKB-860.
+#
+# Nested namespace: the `session` busybox dispatcher routes `session mail <verb>`
+# here, and this routes <verb> -> the sibling `session-mail-<verb>` script.
+#
+#   session mail send <to> --from <from> [opts] <body...>   durable RFC 5322 send
+#   session mail wait <me> [--from M] [--timeout S] [opts]   block until mail lands
+#   session mail list <me> [--unread] [opts]                 low-context subject scan
+#   session mail read <me> <n> [--thread] [opts]             open one message (r07)
+#
+# Mike oversees the whole tree in neomutt (notmuch tag:agent). Addresses are
+# durable role.scope names (e.g. gforeman.skillbox); root defaults to
+# ~/.mail/agents ($SESSION_MAIL_ROOT to override). See the `session` skill.
+set -o pipefail
+self="$(realpath "${BASH_SOURCE[0]:-$0}")"
+dir="$(dirname "$self")"
+
+verb="${1:-}"; shift || true
+case "$verb" in
+  ""|-h|--help)
+    cat <<'USAGE'
+Usage: session mail <verb> [args...]
+
+Verbs:
+  send   deliver an RFC 5322 message into a recipient's maildir (prints Message-ID)
+  wait   block until a matching message arrives (fswatch), claim it, print it
+  list   low-context scan: one sender+subject line per message, unread marked
+  read   open one message by its list index (body; whole thread on --thread)
+
+Run `session mail <verb> --help` for that verb's options.
+USAGE
+    exit 0 ;;
+  */*|*..*)
+    echo "session mail: invalid verb '$verb'" >&2; exit 2 ;;
+esac
+
+target="$dir/session-mail-$verb"
+if [[ -f "$target" && -x "$target" ]]; then
+  exec "$target" "$@"
+fi
+
+echo "session mail: unknown verb '$verb'" >&2
+echo "  verbs: send, wait, list, read   (run \`session mail --help\`)" >&2
+exit 2
