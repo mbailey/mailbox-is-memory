@@ -68,10 +68,14 @@ which parts we found on the shelf.
 
 ## 2. One requirements list, not two
 
-What does agent memory actually require?
+What does agent memory actually require? Memory comes in types — the
+literature's usual split is episodic (what happened), semantic (what is
+known), and procedural (how to act) — and the foundation is the
+episodic record, the tier the others are distilled from. §3 returns to
+that. The episodic record's requirements:
 
-1. An **append-only episodic record** — what happened, in order,
-   attributable.
+1. **Append-only** — what happened, in order, attributable, written
+   once and never rewritten.
 2. **Reclassification without rewriting history** — beliefs change;
    the record of holding them should not. (Throughout this paper: the
    message never changes; only the labels on it do.)
