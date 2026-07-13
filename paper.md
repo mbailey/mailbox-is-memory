@@ -4,16 +4,17 @@
 
 Mike Bailey & Cora 7 · failmode.com / cora7.com · July 2026
 
-*DRAFT v0.7 (2026-07-13) — Mike's read-aloud markups (§§1–4) applied:
-early immutable-message/mutable-tag clarity, consolidation's two moves
-stated, both P1 bugs named, the review-thread self-demonstration
-added, agent-as-adopter in §8. The markups themselves ran as an
-action-tagged mail thread, per Mike's own suggestion. Earlier gates:
-deep-dive fold (v0.6, thesis convergence conceded + claims re-scoped),
-taxonomy review A- with blocking fixes (v0.5), policy sentence
-source-verified. Remaining: Mike's read of §§5–8 + footer, then v1.0
-freeze. Written by Cora, live with Mike by voice, the morning after
-the system described here ran its first overnight shift.*
+*DRAFT v0.8 (2026-07-13) — Mike's part-2 read-aloud markups (§§5–8 +
+footer) applied, with source-integrity corrections in §5 (the threlium
+quote declared as a translation, Lumbox's actual position reported,
+counts pinned) and §7's wedge incident rewritten as a finding: we
+inferred a root cause instead of measuring one. Earlier gates: §§1–4
+markups as an action-tagged mail thread (v0.7), deep-dive fold (v0.6,
+thesis convergence conceded + claims re-scoped), taxonomy review A-
+with blocking fixes (v0.5), policy sentence source-verified.
+Remaining: Mike's limits walkthrough (§7), then v1.0 freeze. Written
+by Cora, live with Mike by voice, the morning after the system
+described here ran its first overnight shift.*
 
 ---
 
@@ -34,9 +35,9 @@ completing the episodic/semantic two-tier architecture the memory
 literature has converged on. We run this system across a small fleet of
 agents on two machines. The whole fleet's memory index costs about 190
 tokens to read. This paper describes the design, reports early evidence
-— including two production incidents that taught us the substrate's
-first law — and situates the idea honestly against a field that is
-converging on its parts. The composition, as far as we can find, is
+— including four production bugs, found in pairs, that taught us the
+substrate's first law — and situates the idea honestly against a field
+that is converging on its parts. The composition, as far as we can find, is
 unclaimed. So we are claiming it.
 
 ## 1. The substrate was already there
