@@ -536,67 +536,83 @@ agents, unlike us, never had to be talked into checking their mail.
 hashes, access dates, archive snapshots, and the exact location of every
 quoted string. Links that carry a quotation show it on hover.*
 
-**Memory architecture.** McClelland, McNaughton & O'Reilly, "Why there
-are complementary learning systems in the hippocampus and neocortex,"
-*Psychological Review* 102(3), 1995 · Park et al., "Generative Agents:
-Interactive Simulacra of Human Behavior," 2023,
-[arXiv:2304.03442](https://arxiv.org/abs/2304.03442) · Packer et al.,
-"MemGPT: Towards LLMs as Operating Systems," 2023,
-[arXiv:2310.08560](https://arxiv.org/abs/2310.08560).
+**Memory architecture.**
 
-**The 2026 immutable-memory wave.** Park, "Graph-Native Cognitive
-Memory for AI Agents" (Kumiho), 2026,
-[arXiv:2603.17244](https://arxiv.org/abs/2603.17244) · Malo & Qiu,
-"PROJECTMEM: A Local-First, Event-Sourced Memory and Judgment Layer for
-AI Coding Agents," 2026,
-[arXiv:2606.12329](https://arxiv.org/abs/2606.12329) · Nakajima, "The
-Log is the Agent: Event-Sourced Reactive Graphs for Auditable, Forkable
-Agentic Systems," 2026,
-[arXiv:2605.21997](https://arxiv.org/abs/2605.21997).
+- McClelland, McNaughton & O'Reilly, "Why there are complementary
+  learning systems in the hippocampus and neocortex," *Psychological
+  Review* 102(3), 1995
+- Park et al., "Generative Agents: Interactive Simulacra of Human
+  Behavior," 2023, [arXiv:2304.03442](https://arxiv.org/abs/2304.03442)
+- Packer et al., "MemGPT: Towards LLMs as Operating Systems," 2023,
+  [arXiv:2310.08560](https://arxiv.org/abs/2310.08560)
 
-**Closest systems.** threlium,
-[github.com/3DRaven/threlium](https://github.com/3DRaven/threlium/tree/a047ff825077 "README L10: 'FSM on Maildirs — each event is an RFC 5322 message; each stage is stages/<stage>/Maildir/' — verified verbatim at a047ff8, 2026-07-13") ·
-Lumbox, ["Email as Memory for AI Agents"](https://lumbox.co/blog/email-as-memory-ai-agents-lumbox "'Hybrid is fine. Use the inbox for durable, addressable, audit-able memory. Use a vector store for similarity search over summaries.' — verified verbatim and archived 2026-07-13") (blog, 2026-05-22) · Nylas
-(Hazik), "Email as Memory for AI Agents,"
-[cli.nylas.com/guides/email-as-memory-for-ai-agents](https://cli.nylas.com/guides/email-as-memory-for-ai-agents "Opening body sentence: 'TL;DR: Email is persistent, searchable memory for AI agents.' — published 2026-03-12, modified 2026-05-16")
-(updated 2026-05-16) · Muhammad, "From Chatbot to Mailbox: Persistent
-Agent Memory in Threads,"
-[dev.to/qasim157](https://dev.to/qasim157/from-chatbot-to-mailbox-persistent-agent-memory-in-threads-4ce0 "'…for agents that work across days rather than minutes, the thread is the most underrated memory substrate available.' — verified via the dev.to API and archived, 2026-07-13")
-(2026-06-16) · mcp_agent_mail,
-[github.com/Dicklesworthstone/mcp_agent_mail](https://github.com/Dicklesworthstone/mcp_agent_mail) ·
-cass_memory_system,
-[github.com/Dicklesworthstone/cass_memory_system](https://github.com/Dicklesworthstone/cass_memory_system) ·
-alook, [github.com/alookai/alook](https://github.com/alookai/alook/tree/a227bcf7c67b "Marketing: 'that context layer is email'. AGENTS.md @ a227bcf: 'All the state must be in DB or local, never put important states in memory' — verified in code, 2026-07-13") ·
-Kikubot,
-[github.com/mxaiorg/kikubot](https://github.com/mxaiorg/kikubot) ·
-AgentMail, [agentmail.to](https://agentmail.to) · notmuch-ai,
-[github.com/joryeugene/notmuch-ai](https://github.com/joryeugene/notmuch-ai) ·
-agentdir, [github.com/jstxn/agentdir](https://github.com/jstxn/agentdir) ·
-agent-mail (Tietze),
-[codeberg.org/ctietze/agent-mail](https://codeberg.org/ctietze/agent-mail) ·
-ai-context-protocol,
-[github.com/hj2314/ai-context-protocol](https://github.com/hj2314/ai-context-protocol) ·
-dual-plane delivery (defensive publication, 2026-07-03),
-[github.com/gusitllc/dual-plane-inbound-email-delivery](https://github.com/gusitllc/dual-plane-inbound-email-delivery).
+**The 2026 immutable-memory wave.**
 
-**Deep ancestry.** Flores, Graves, Hartfield & Winograd, "Computer
-systems and the design of organizational interaction," *ACM TOIS* 6(2),
-1988, [doi:10.1145/45941.45943](https://doi.org/10.1145/45941.45943) ·
-Winograd & Flores, *Understanding Computers and Cognition*, 1986 ·
-McDowell, Etzioni, Halevy & Levy, "Semantic email: theory and
-applications," *Journal of Web Semantics* 2(1), 2004,
-[doi:10.1016/j.websem.2004.09.001](https://doi.org/10.1016/j.websem.2004.09.001) ·
-Etzioni & Weld, "A softbot-based interface to the Internet," *CACM*
-37(7), 1994,
-[doi:10.1145/176789.176797](https://doi.org/10.1145/176789.176797) ·
-Whittaker & Sidner, "Email overload," CHI 1996,
-[doi:10.1145/238386.238530](https://doi.org/10.1145/238386.238530).
+- Park, "Graph-Native Cognitive Memory for AI Agents" (Kumiho), 2026,
+  [arXiv:2603.17244](https://arxiv.org/abs/2603.17244)
+- Malo & Qiu, "PROJECTMEM: A Local-First, Event-Sourced Memory and
+  Judgment Layer for AI Coding Agents," 2026,
+  [arXiv:2606.12329](https://arxiv.org/abs/2606.12329)
+- Nakajima, "The Log is the Agent: Event-Sourced Reactive Graphs for
+  Auditable, Forkable Agentic Systems," 2026,
+  [arXiv:2605.21997](https://arxiv.org/abs/2605.21997)
 
-**Security.** CVE-2025-32711 ("EchoLeak"),
-[nvd.nist.gov/vuln/detail/CVE-2025-32711](https://nvd.nist.gov/vuln/detail/CVE-2025-32711) ·
-kernel patch workflow:
-[kernel.org submitting-patches](https://www.kernel.org/doc/html/latest/process/submitting-patches.html) ·
-patchwork: [patchwork.kernel.org](https://patchwork.kernel.org).
+**Closest systems.**
+
+- threlium,
+  [github.com/3DRaven/threlium](https://github.com/3DRaven/threlium/tree/a047ff825077 "README L10: 'FSM on Maildirs — each event is an RFC 5322 message; each stage is stages/<stage>/Maildir/' — verified verbatim at a047ff8, 2026-07-13")
+- Lumbox, ["Email as Memory for AI Agents"](https://lumbox.co/blog/email-as-memory-ai-agents-lumbox "'Hybrid is fine. Use the inbox for durable, addressable, audit-able memory. Use a vector store for similarity search over summaries.' — verified verbatim and archived 2026-07-13")
+  (blog, 2026-05-22)
+- Nylas (Hazik), "Email as Memory for AI Agents,"
+  [cli.nylas.com/guides/email-as-memory-for-ai-agents](https://cli.nylas.com/guides/email-as-memory-for-ai-agents "Opening body sentence: 'TL;DR: Email is persistent, searchable memory for AI agents.' — published 2026-03-12, modified 2026-05-16")
+  (updated 2026-05-16)
+- Muhammad, "From Chatbot to Mailbox: Persistent Agent Memory in
+  Threads,"
+  [dev.to/qasim157](https://dev.to/qasim157/from-chatbot-to-mailbox-persistent-agent-memory-in-threads-4ce0 "'…for agents that work across days rather than minutes, the thread is the most underrated memory substrate available.' — verified via the dev.to API and archived, 2026-07-13")
+  (2026-06-16)
+- mcp_agent_mail,
+  [github.com/Dicklesworthstone/mcp_agent_mail](https://github.com/Dicklesworthstone/mcp_agent_mail)
+- cass_memory_system,
+  [github.com/Dicklesworthstone/cass_memory_system](https://github.com/Dicklesworthstone/cass_memory_system)
+- alook,
+  [github.com/alookai/alook](https://github.com/alookai/alook/tree/a227bcf7c67b "Marketing: 'that context layer is email'. AGENTS.md @ a227bcf: 'All the state must be in DB or local, never put important states in memory' — verified in code, 2026-07-13")
+- Kikubot, [github.com/mxaiorg/kikubot](https://github.com/mxaiorg/kikubot)
+- AgentMail, [agentmail.to](https://agentmail.to)
+- notmuch-ai,
+  [github.com/joryeugene/notmuch-ai](https://github.com/joryeugene/notmuch-ai)
+- agentdir, [github.com/jstxn/agentdir](https://github.com/jstxn/agentdir)
+- agent-mail (Tietze),
+  [codeberg.org/ctietze/agent-mail](https://codeberg.org/ctietze/agent-mail)
+- ai-context-protocol,
+  [github.com/hj2314/ai-context-protocol](https://github.com/hj2314/ai-context-protocol)
+- dual-plane delivery (defensive publication, 2026-07-03),
+  [github.com/gusitllc/dual-plane-inbound-email-delivery](https://github.com/gusitllc/dual-plane-inbound-email-delivery)
+
+**Deep ancestry.**
+
+- Flores, Graves, Hartfield & Winograd, "Computer systems and the
+  design of organizational interaction," *ACM TOIS* 6(2), 1988,
+  [doi:10.1145/45941.45943](https://doi.org/10.1145/45941.45943)
+- Winograd & Flores, *Understanding Computers and Cognition*, 1986
+- McDowell, Etzioni, Halevy & Levy, "Semantic email: theory and
+  applications," *Journal of Web Semantics* 2(1), 2004,
+  [doi:10.1016/j.websem.2004.09.001](https://doi.org/10.1016/j.websem.2004.09.001)
+- Etzioni & Weld, "A softbot-based interface to the Internet," *CACM*
+  37(7), 1994,
+  [doi:10.1145/176789.176797](https://doi.org/10.1145/176789.176797)
+- Whittaker & Sidner, "Email overload," CHI 1996,
+  [doi:10.1145/238386.238530](https://doi.org/10.1145/238386.238530)
+
+**Security and process.**
+
+- CVE-2025-32711 ("EchoLeak"),
+  [nvd.nist.gov/vuln/detail/CVE-2025-32711](https://nvd.nist.gov/vuln/detail/CVE-2025-32711)
+- kernel patch workflow:
+  [kernel.org submitting-patches](https://www.kernel.org/doc/html/latest/process/submitting-patches.html)
+- patchwork: [patchwork.kernel.org](https://patchwork.kernel.org)
+- `Supersedes:` header: RFC 2156 (email; replacing `Obsoletes:`) and
+  [RFC 5536 §3.2.12](https://www.rfc-editor.org/rfc/rfc5536#section-3.2.12)
+  (netnews)
 
 ---
 
