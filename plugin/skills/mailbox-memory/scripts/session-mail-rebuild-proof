@@ -42,8 +42,24 @@
 
 set -uo pipefail
 
-NOTMUCH="${NOTMUCH_BIN:-/opt/homebrew/bin/notmuch}"
-command -v "$NOTMUCH" >/dev/null 2>&1 || NOTMUCH=notmuch
+# do-005 (foreman review gap #2): the shipped copy previously hardcoded
+# NOTMUCH_BIN's default to /opt/homebrew/bin/notmuch — dead on Linux and on
+# MacPorts (same class of bug already fixed in setup.sh's hook install: see
+# that script's "Portable notmuch binary resolution" comment). Resolve via
+# `command -v notmuch` (this session's actual PATH) first; NOTMUCH_BIN still
+# overrides everything (e.g. for a launchd context whose PATH is stripped);
+# the old /opt/homebrew hardcode is kept only as the last-resort fallback for
+# a non-interactive/no-PATH invocation on an unmodified Homebrew macOS box.
+# This intentionally DIVERGES this installed copy from the skillbox source
+# script of the same name — upstreaming the same fix there is optional
+# follow-up, out of this deliverable's scope.
+if [ -n "${NOTMUCH_BIN:-}" ]; then
+  NOTMUCH="$NOTMUCH_BIN"
+elif command -v notmuch >/dev/null 2>&1; then
+  NOTMUCH="$(command -v notmuch)"
+else
+  NOTMUCH="/opt/homebrew/bin/notmuch"
+fi
 export NOTMUCH_CONFIG="${NOTMUCH_CONFIG:-$HOME/.notmuch-config}"
 
 DB="$("$NOTMUCH" config get database.path 2>/dev/null)"

@@ -92,6 +92,33 @@ notmuch_get() {
     notmuch config get "$1" 2>/dev/null || true
 }
 
+# notmuch_config_path — where notmuch itself will look for its config file,
+# per its own documented search order (skipping the `--config` CLI flag,
+# which setup.sh never passes): NOTMUCH_CONFIG env override, else the XDG
+# default-profile path, else the legacy $HOME/.notmuch-config[.PROFILE].
+# Used only to detect "does a config file exist at all" (do-005 bootstrap
+# below) — never to second-guess notmuch's own resolution once one exists.
+notmuch_config_path() {
+    if [ -n "${NOTMUCH_CONFIG:-}" ]; then
+        printf '%s\n' "$NOTMUCH_CONFIG"
+        return
+    fi
+    local xdg="${XDG_CONFIG_HOME:-$HOME/.config}"
+    local profile="${NOTMUCH_PROFILE:-default}"
+    local xdg_path="$xdg/notmuch/$profile/config"
+    local legacy_path="$HOME/.notmuch-config"
+    [ -n "${NOTMUCH_PROFILE:-}" ] && legacy_path="$HOME/.notmuch-config.$NOTMUCH_PROFILE"
+    if [ -f "$xdg_path" ]; then
+        printf '%s\n' "$xdg_path"
+    elif [ -f "$legacy_path" ]; then
+        printf '%s\n' "$legacy_path"
+    else
+        # Neither exists — this is the fresh-machine case (no `notmuch setup`
+        # ever run). Nominate the modern XDG path as where we'll bootstrap.
+        printf '%s\n' "$xdg_path"
+    fi
+}
+
 # notmuch_set_additive KEY VALUE LABEL FORCE — set KEY=VALUE unless a
 # DIFFERENT value is already present, in which case skip (or overwrite with
 # --force). Never clobbers a user's existing new.tags/query.memory silently.
@@ -155,6 +182,71 @@ cmd_notmuch() {
 
     [ "$DRY_RUN" = 1 ] && echo "[notmuch] MODE: DRY-RUN (no changes)"
 
+    local mailbox_root="${MAILBOX_MEMORY_ROOT:-$HOME/.mail}"
+
+    # Fresh-machine bootstrap (foreman review BLOCKER, do-005): `notmuch
+    # config get/set` are silent no-ops when NO config file exists yet at
+    # ALL — verified live (notmuch 0.40): with NOTMUCH_CONFIG pointed at a
+    # path that doesn't exist, `notmuch config set database.path ...` prints
+    # "Error: could not locate database." to stderr and writes nothing (exit
+    # 0 either way), so every additive setter below — and the final
+    # `notmuch new` this quickstart depends on — silently fails on any
+    # machine that has never run `notmuch setup`. The flagship `setup.sh all`
+    # broke at exactly this step for a truly fresh HN user.
+    #
+    # Once a config file exists (even an EMPTY one — verified live), the
+    # exact same `notmuch config set` calls work normally. So the fix is
+    # narrow: if notmuch's own search order finds no config file, create an
+    # empty one at the path it would use, and make sure the mailbox root dir
+    # exists. This never touches an existing config: the `-f` check only
+    # fires when nothing is there yet.
+    local cfg_path bootstrapped=0
+    cfg_path="$(notmuch_config_path)"
+    if [ ! -f "$cfg_path" ]; then
+        echo "[notmuch] no existing config found (checked \$NOTMUCH_CONFIG, XDG default, ~/.notmuch-config) — bootstrapping fresh config at $cfg_path (mailbox root: $mailbox_root)"
+        run mkdir -p "$(dirname "$cfg_path")"
+        run mkdir -p "$mailbox_root"
+        if [ "$DRY_RUN" = 1 ]; then
+            printf '  + touch %s\n' "$cfg_path"
+        else
+            touch "$cfg_path"
+        fi
+        bootstrapped=1
+    fi
+
+    # database location: deliberately NOT routed through notmuch_set_additive
+    # — verified live that `notmuch config get database.path` never returns
+    # empty once a config file exists at all, even one with the key never
+    # set: it falls back to notmuch's OWN computed default (its documented
+    # DATABASE LOCATION search order, e.g. $HOME/mail) and prints that as the
+    # "current" value. notmuch_set_additive's emptiness check would read
+    # that computed default as "already configured" and skip setting it —
+    # silently leaving the just-bootstrapped config pointed at notmuch's
+    # default instead of our mailbox root, so `notmuch new`/`search` would
+    # never see mail written under $MAILBOX_MEMORY_ROOT (verified live: the
+    # send/search round trip found 0 messages before this fix). Gate on the
+    # file-existence bootstrap flag above instead, which is the only
+    # reliable "was there ever a real config" signal. mail_root is set
+    # alongside database.path — newer notmuch defaults mail_root from
+    # database.path when unset, but the do-005 remit calls out setting it
+    # explicitly for notmuch versions that want it set directly.
+    if [ "$bootstrapped" = 1 ]; then
+        echo "[notmuch] database root: setting database.path = $mailbox_root (fresh config)"
+        run notmuch config set database.path "$mailbox_root"
+        echo "[notmuch] database root (mail_root): setting database.mail_root = $mailbox_root (fresh config)"
+        run notmuch config set database.mail_root "$mailbox_root"
+    elif [ "$force" = 1 ]; then
+        local current_path current_mail_root
+        current_path="$(notmuch_get database.path)"
+        current_mail_root="$(notmuch_get database.mail_root)"
+        echo "[notmuch] database root: overwriting existing database.path ('$current_path' -> '$mailbox_root') [--force]"
+        run notmuch config set database.path "$mailbox_root"
+        echo "[notmuch] database root (mail_root): overwriting existing database.mail_root ('$current_mail_root' -> '$mailbox_root') [--force]"
+        run notmuch config set database.mail_root "$mailbox_root"
+    else
+        echo "[notmuch] database root: existing config found at $cfg_path — leaving database.path/mail_root untouched (pass --force to overwrite)"
+    fi
+
     # Header indexing: makes the X-Task/X-Project/Supersedes prefixes
     # (design §5's requirement) queryable without a corpus grep, and gives
     # notmuch-post-new's Supersedes re-derivation a scale-out path later
@@ -197,7 +289,7 @@ cmd_notmuch() {
     if [ -z "$hooks_dir" ]; then
         local db_path
         db_path="$(notmuch_get database.path)"
-        [ -n "$db_path" ] || db_path="${MAILBOX_MEMORY_ROOT:-$HOME/.mail}"
+        [ -n "$db_path" ] || db_path="$mailbox_root"
         hooks_dir="$db_path/.notmuch/hooks"
     fi
 
