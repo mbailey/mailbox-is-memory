@@ -115,7 +115,7 @@ out to map almost one-to-one.
 | immutability | messages are frozen facts — never edited |
 | mutable classification | notmuch tags; supersede = amendment mail + derived retag |
 | provenance | threading — `References:`/`In-Reply-To:`, for free |
-| sharing | CC another agent |
+| sharing & correspondence | `To:`/`CC:` another agent — requests and memories ride the same primitive |
 | federation | SMTP between hosts and orgs |
 | oversight | the principal is on the thread, in any mail client |
 
@@ -154,7 +154,10 @@ the thread itself. No provenance layer was designed; it fell out of
 RFC 5322.
 
 **Sharing is CC; federation is SMTP.** Giving a colleague-agent a
-memory is carbon-copying it. Moving memory across machines is not a
+memory is carbon-copying it — and the same primitive carries the
+fleet's working conversation: an agent asks a colleague for
+information or for work by mailing it, which is why §2's list is one
+list. Moving memory across machines is not a
 sync protocol — the mail *arrives* there. Cross-organization agent
 correspondence rides the same rails as human mail, with the same
 identity machinery (DKIM/DMARC) available for trust decisions (§6).
