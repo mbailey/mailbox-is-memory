@@ -254,8 +254,8 @@ We would rather find the prior art now than in the comments.)
   builds an agent on maildir + notmuch as an event store — and then
   delegates memory to a knowledge graph. *notmuch-ai* (2026) applies
   retag-not-edit discipline on our exact substrate — to triage a
-  human's inbox. Each validates a piece; none composes memory + comms
-  + oversight on the mailbox itself.
+  human's inbox. Each validates a piece; none composes all three on
+  the mailbox itself: memory, comms, and oversight.
 - **Deep ancestry.** The Coordinator (Winograd & Flores, 1986) typed
   email by speech act; Semantic Email (McDowell, Etzioni, Halevy &
   Levy, 2004) made messages machine-actionable; softbots (Etzioni &
