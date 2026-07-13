@@ -95,8 +95,8 @@ stacks; the requirements say they are one problem. Email is that one
 problem's forty-year-old existence proof.
 
 We are not the first to trust email threads with serious engineering.
-The Linux kernel — the largest and longest-running distributed
-engineering project in history — coordinates entirely over mailing
+The Linux kernel — one of the largest and longest-running distributed
+engineering projects in history — coordinates entirely over mailing
 lists: one thread per patch series; `Reviewed-by:`, `Acked-by:`, and
 `Tested-by:` trailers appended as resolution codes to messages nobody
 edits; "Applied, thanks" as the informal terminal reply; patchwork
