@@ -310,7 +310,7 @@ append-only history as a commercial email API; a Nylas developer guide
 essay by Qasim Muhammad (June 2026) calls the thread "the most
 underrated memory substrate available." By mid-2026 this is an emerging
 talking point, and we say so plainly. What none of
-these does is treat the mailbox as the *classified, supersedable,
+these does is treat the mailbox as the *tagged, supersedable,
 consolidated* memory-of-record that is also the comms substrate, read
 by the principal in their own client.
 
