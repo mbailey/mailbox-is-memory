@@ -336,7 +336,7 @@ by the principal in their own client.
   a *derived* retrieval index over those messages, not the store of
   record — our §7 embeddings sidecar, arrived at independently and
   earlier. What it lacks, verified against its code: mutable-tag
-  classification with supersede-by-retag (its tag taxonomy is
+  classification with supersede-by-amendment (its tag taxonomy is
   operational only), a proposal-and-approval consolidation loop,
   cross-agent SMTP federation (it is one agent; email is its human-I/O
   channel), and a principal addressed *on* the thread rather than
@@ -385,10 +385,11 @@ by the principal in their own client.
 What we claim as ours, after all of the above: (1) the **full
 composition, shipped and named** — all seven mechanisms plus the
 consolidation pass, in production, on real maildir and notmuch; (2)
-**supersede-by-retag as the memory-correction discipline** — mutable
+**supersede-by-amendment as the memory-correction discipline** — mutable
 classification over immutable messages appears nowhere else we could
-find on this substrate (the closest system corrects by append-and-hope
-retrieval); (3) **proposal-and-approval consolidation** — curation the
+find on this substrate (the closest system appends a correction like
+any other memory and trusts retrieval to prefer it; nothing marks the
+old belief superseded); (3) **proposal-and-approval consolidation** — curation the
 principal can veto, itself conducted as mail; and (4) taking the
 principal-on-the-thread pattern — which others are converging on as
 read-only observation or dual-plane delivery — **furthest: the audit
