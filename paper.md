@@ -437,10 +437,30 @@ govern.
   its own queries at a rate no human searcher does. We will build the
   sidecar when the archive outgrows those answers, not before — you
   don't stand up the cluster while the pipeline still fits.
-- **Tags are an index, not truth.** notmuch tags live in a rebuildable
-  Xapian database; lifecycle state that must survive a rebuild needs a
-  durable home (amendment messages / folders), with hooks re-deriving
-  tags. Designed, not yet shipped.
+- **Tags are an index, not truth — so we tested what that costs.**
+  notmuch tags live in a rebuildable Xapian database, and while this
+  section was in review we ran the obvious experiment on the live
+  corpus: delete the index, rebuild from the maildir alone. **Our own
+  discipline failed it.** The `superseded` tag vanished, and the
+  falsified diagnosis of §4 — corrected hours earlier — returned as
+  current truth. Reclassification lived only in the cache; the memory
+  system could forget it had changed its mind. The fix moved the fact
+  into the message: a supersede now writes a `Supersedes:` header into
+  an immutable amendment mail, and an index hook re-derives the tag
+  from the mail on every rebuild — the tag is a projection of the
+  record, and the index is disposable again. The header turned out to
+  be standard — RFC 2156 defines `Supersedes:` for email, RFC 5536 for
+  netnews; we minted `X-Supersedes` under duress and found the real one
+  on the shelf within hours. The amendment we actually sent reads
+  `X-Supersedes: <1783881117.40480.15448@m5.session-mail>` — and will
+  say so forever, pre-rename spelling and all, because messages do not
+  change; the hook honours both. Rebuild-and-requery is now the
+  acceptance test — a single command that destroys the index in front
+  of the sceptic and shows the correction returning while the wrong
+  belief stays preserved, byte for byte — and it passes. One honest
+  caveat: corrections made before the header existed re-derive only
+  after backfilling amendment messages; a chore we own, not a design
+  flaw.
 - **Single-principal so far.** The fleet serves one human. The
   cross-principal story (§6) is designed and gated on its safety kit,
   not yet piloted.
