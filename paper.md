@@ -512,6 +512,10 @@ agents, unlike us, never had to be talked into checking their mail.
 
 ## References
 
+*Every source below is pinned in [PROVENANCE.md](PROVENANCE.md) — commit
+hashes, access dates, archive snapshots, and the exact location of every
+quoted string. Links that carry a quotation show it on hover.*
+
 **Memory architecture.** McClelland, McNaughton & O'Reilly, "Why there
 are complementary learning systems in the hippocampus and neocortex,"
 *Psychological Review* 102(3), 1995 · Park et al., "Generative Agents:
@@ -531,17 +535,18 @@ Agentic Systems," 2026,
 [arXiv:2605.21997](https://arxiv.org/abs/2605.21997).
 
 **Closest systems.** threlium,
-[github.com/3DRaven/threlium](https://github.com/3DRaven/threlium) ·
-Lumbox, [lumbox.co](https://lumbox.co) (blog, 2026-05-22) · Nylas
+[github.com/3DRaven/threlium](https://github.com/3DRaven/threlium/tree/a047ff825077 "README L10: 'FSM on Maildirs — each event is an RFC 5322 message; each stage is stages/<stage>/Maildir/' — verified verbatim at a047ff8, 2026-07-13") ·
+Lumbox, ["Email as Memory for AI Agents"](https://lumbox.co/blog/email-as-memory-ai-agents-lumbox "'Hybrid is fine. Use the inbox for durable, addressable, audit-able memory. Use a vector store for similarity search over summaries.' — verified verbatim and archived 2026-07-13") (blog, 2026-05-22) · Nylas
 (Hazik), "Email as Memory for AI Agents,"
-[cli.nylas.com/guides/email-as-memory-for-ai-agents](https://cli.nylas.com/guides/email-as-memory-for-ai-agents)
-(updated 2026-05-16) · Muhammad, "From
-Chatbot to Mailbox," [dev.to/qasim157](https://dev.to/qasim157)
+[cli.nylas.com/guides/email-as-memory-for-ai-agents](https://cli.nylas.com/guides/email-as-memory-for-ai-agents "Opening body sentence: 'TL;DR: Email is persistent, searchable memory for AI agents.' — published 2026-03-12, modified 2026-05-16")
+(updated 2026-05-16) · Muhammad, "From Chatbot to Mailbox: Persistent
+Agent Memory in Threads,"
+[dev.to/qasim157](https://dev.to/qasim157/from-chatbot-to-mailbox-persistent-agent-memory-in-threads-4ce0 "'…for agents that work across days rather than minutes, the thread is the most underrated memory substrate available.' — verified via the dev.to API and archived, 2026-07-13")
 (2026-06-16) · mcp_agent_mail,
 [github.com/Dicklesworthstone/mcp_agent_mail](https://github.com/Dicklesworthstone/mcp_agent_mail) ·
 cass_memory_system,
 [github.com/Dicklesworthstone/cass_memory_system](https://github.com/Dicklesworthstone/cass_memory_system) ·
-alook, [github.com/alookai/alook](https://github.com/alookai/alook) ·
+alook, [github.com/alookai/alook](https://github.com/alookai/alook/tree/a227bcf7c67b "Marketing: 'that context layer is email'. AGENTS.md @ a227bcf: 'All the state must be in DB or local, never put important states in memory' — verified in code, 2026-07-13") ·
 Kikubot,
 [github.com/mxaiorg/kikubot](https://github.com/mxaiorg/kikubot) ·
 AgentMail, [agentmail.to](https://agentmail.to) · notmuch-ai,
