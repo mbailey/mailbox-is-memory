@@ -1,8 +1,8 @@
 # Mail troubleshooting — tracing a message from sender to maildir
 
-How to find out where an agent mail actually went. Written after the
-`super.of-tpp-infra` incident (COMS-95, 2026-07-13), where mail "sent fine"
-and silently vanished for hours.
+How to find out where an agent mail actually went. Written after an
+incident (COMS-95, 2026-07-13) where an agent's mail "sent fine" and
+silently vanished for hours.
 
 **The one thing to internalise:** a mailbox *directory* existing does not mean
 mail can be *delivered* to it. Those are two different facts, and the gap
@@ -52,7 +52,7 @@ If you got that refusal, believe it.
 `session mail send` prints its transport to stderr on every send:
 
 ```
-session-mail-send: sent via smtp (postfix) → cora@m5
+session-mail-send: sent via smtp (postfix) → cora@host
 session-mail-send: ⚠  FILEDROP — POSTFIX BYPASSED. Wrote the maildir directly: …
 ```
 
@@ -100,14 +100,18 @@ delivery *and* receipt both worked.
 
 ## Map frozen / watch-only box
 
-**Symptom.** A newly created agent box is not in the map. `vmailbox-gen` hangs
-or fails silently. Mail to the agent bounces `unknown user`, while the agent's
-listener sits armed and hears nothing.
+**Symptom.** A newly created agent box is not in the map. Regenerating the
+map (`setup.sh postfix`) hangs or fails silently. Mail to the agent bounces
+`unknown user`, while the agent's listener sits armed and hears nothing.
 
-**Why it happens.** `session mail wait` provisions the map entry when it arms
-(provisioning = `mkdir` + map entry). That call is bounded by a 10s watchdog so
-a wedged map dir can never block arming — but if it times out, the box is armed
-**watch-only**. Since 2026-07-13 it says so, loudly. Older sessions did not.
+**Why it happens.** `session-mail-wait` best-effort provisions the map entry
+when it arms (provisioning = `mkdir` + map entry), looking for a
+`vmailbox-gen`-shaped generator on `PATH` or under `~/.mail/.postfix/` — in
+this plugin that's `setup.sh postfix` (above), not a standalone binary. The
+call is bounded by a 10s watchdog so a wedged map dir can never block
+arming — but if the generator isn't found, or it times out, the box still
+arms, just **watch-only**: listening, with no map entry to actually receive
+through. Since 2026-07-13 it says so, loudly. Older sessions did not.
 
 **Diagnose.** Is the map stale?
 
@@ -121,7 +125,7 @@ Mailbox newer than map → it never got provisioned.
 **Fix — regenerate the map:**
 
 ```bash
-~/.mail/.postfix/vmailbox-gen --root ~/.mail
+"$CLAUDE_PLUGIN_ROOT/scripts/setup.sh" postfix
 postmap -q "<name>@$(hostname -s)" hash:/etc/postfix/agents.d/vmailbox   # verify
 ```
 
@@ -132,15 +136,12 @@ timeout 5 mkdir /etc/postfix/agents.d/.probe && rmdir /etc/postfix/agents.d/.pro
   && echo "clear" || echo "WEDGED"
 ```
 
-The known wedge (m5, 2026-07-13): every **write-open** on
+A known wedge case (2026-07-13): every **write-open** on
 `/etc/postfix/agents.d` hangs in-kernel, system-wide, while read-opens still
 work — so the map keeps *serving* existing agents but can never be *updated*.
 Nothing shows in `ps`; no process holds the lock.
 
-- **Only a reboot clears it.** Then re-run `vmailbox-gen` and re-verify.
-- A stale `.vmailbox-gen.lock` directory may be left behind (the generator's
-  `trap … EXIT` cannot run if the watchdog kills it mid-hang). Remove it —
-  but note that removing it does *not* fix the wedge on its own.
+- **Only a reboot clears it.** Then re-run `setup.sh postfix` and re-verify.
 - **Meanwhile**, `--filedrop` delivers same-host mail without postfix. Read the
   next section before you reach for it.
 
@@ -170,13 +171,14 @@ it in as an automatic fallback for a bounce.
 
 Several sessions can be armed on the same role box (two Coras, two foremen). A
 maildir claim is **exactly-once**, so without a rule they simply race, and the
-message goes to whichever listener's watcher fires first. Mike hit this live:
-he addressed a message to a *specific* session and a different one ate it.
+message goes to whichever listener's watcher fires first — an operator can hit
+this live: address a message to a *specific* session and a different one eats
+it.
 
 **Plus-addressing gives every session (or purpose) its own address for free.**
-postfix strips the `+extension` before the map lookup, so `cora+cf138988@m5` and
-`cora+coms-110@m5` both resolve through the single `cora@m5` map row and land in
-the one shared `agents/cora/` maildir.
+postfix strips the `+extension` before the map lookup, so `cora+cf138988@host`
+and `cora+coms-110@host` both resolve through the single `cora@host` map row
+and land in the one shared `agents/cora/` maildir.
 
 - **The map does not grow.** One row per *role*, however many sessions run.
 - **It needs no provisioning at all** — so direct session addressing works **even
@@ -199,10 +201,10 @@ That last row is the whole safety property; without it, direct addressing is
 decorative.
 
 ```bash
-session mail wait cora                  # "listen for both": role mail + mail for my own session
-session mail wait cora+cf138988         # STRICT: only that address, no role mail
-session mail send cora+cf138988 --from mike "for you specifically"
-session mail send cora+cf138988 --from mike "for you specifically"
+SD="$CLAUDE_PLUGIN_ROOT/skills/mailbox-memory/scripts"
+"$SD/session-mail-wait" cora                  # "listen for both": role mail + mail for my own session
+"$SD/session-mail-wait" cora+cf138988         # STRICT: only that address, no role mail
+"$SD/session-mail-send" cora+cf138988 --from you "for you specifically"
 ```
 
 ⚠️ **Open:** mail addressed to a session that dies before reading it sits in
@@ -212,24 +214,27 @@ session mail send cora+cf138988 --from mike "for you specifically"
 
 ## Gotchas
 
-- **`stat -f` means different things on GNU and BSD.** m5 has GNU coreutils
-  ahead of BSD on `PATH`, where `-f` is *filesystem status*, not format — so
-  `stat -f %m` silently returns free-block counts, not an mtime. Use
-  `/usr/bin/stat -f` (BSD) explicitly, or `stat -c` (GNU).
-- **`postfix status` is root-only on macOS** and exits 1 *silently* for uid 501.
-  Using it as a liveness probe degrades every agent send to filedrop. Probe with
-  `postqueue -p` instead — setgid `postdrop`, works for any uid.
+- **`stat -f` means different things on GNU and BSD.** On a host with GNU
+  coreutils ahead of BSD on `PATH` (e.g. Homebrew `coreutils` unshimmed),
+  `-f` is *filesystem status*, not format — so `stat -f %m` silently returns
+  free-block counts, not an mtime. Use `/usr/bin/stat -f` (BSD) explicitly,
+  or `stat -c` (GNU).
+- **`postfix status` is root-only on macOS** and exits 1 *silently* for a
+  non-root uid. Using it as a liveness probe degrades every agent send to
+  filedrop. Probe with `postqueue -p` instead — setgid `postdrop`, works for
+  any uid.
 - **Addresses fold to lowercase** for path/lookup resolution; display headers
   keep their case.
-- **Sibling names lie to you.** `super.of-tpp-api` being in the map tells you
-  nothing about `super.of-tpp-infra`. Check the exact name.
+- **Sibling names lie to you.** A similarly-named role being in the map
+  tells you nothing about a different one. Check the exact name, not just
+  the prefix.
 
 ---
 
 ## See also
 
-- `scripts/session-mail-send` — pre-flight, transports, and their reporting.
-- `scripts/session-mail-wait` — arming, provisioning, the watch-only warning.
-- `~/.mail/.postfix/vmailbox-gen` — rebuilds the map from the maildir tree
+- `../scripts/session-mail-send` — pre-flight, transports, and their reporting.
+- `../scripts/session-mail-wait` — arming, provisioning, the watch-only warning.
+- `../../../scripts/setup.sh postfix` — rebuilds the map from the maildir tree
   (single source of truth) and runs `postmap`.
 - COMS-95 — the incident this document is made of.
