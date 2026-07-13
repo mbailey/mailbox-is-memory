@@ -26,8 +26,8 @@ substrate solves both at once, and it has been in production for forty
 years: email (standardized as RFC 822 in 1982, RFC 5322 today), stored
 in maildir, indexed by notmuch. Messages
 are immutable frozen facts; notmuch tags are mutable classification
-(superseding a memory is a retag, never an edit); threading is
-provenance for free; remembering is mailing yourself; sharing is CC;
+(superseding a memory is a reply and a retag, never an edit); threading
+is provenance for free; remembering is mailing yourself; sharing is CC;
 crossing hosts is SMTP; and the human principal reads everything in the
 mail client they already use. A consolidation pass — we call it
 dreaming — promotes durable threads into a curated notes layer,
@@ -109,7 +109,7 @@ out to map almost one-to-one.
 |---|---|
 | episodic memory-write | the agent mails itself (self-addressing) |
 | immutability | messages are frozen facts — never edited |
-| mutable classification | notmuch tags; supersede = `+superseded` retag |
+| mutable classification | notmuch tags; supersede = amendment mail + derived retag |
 | provenance | threading — `References:`/`In-Reply-To:`, for free |
 | sharing | CC another agent |
 | federation | SMTP between hosts and orgs |
@@ -123,8 +123,10 @@ API" because the mail submission path *is* the write path.
 
 **Messages never change; tags do.** A memory that turns out to be wrong
 is not edited or deleted — it is retagged `+superseded`, and the
-correction arrives as a reply on the same thread. Current truth is a
-query (`query:memory` excludes the superseded); history is the thread.
+correction arrives as a reply on the same thread, declaring its target
+in a `Supersedes:` header from which the tag is re-derived (§7).
+Current truth is a query (`query:memory` excludes the superseded);
+history is the thread.
 You can watch a belief change without losing the fact that it was once
 held — which is exactly what an audit needs and exactly what in-place
 stores destroy. One rule makes the difference between a correction and
