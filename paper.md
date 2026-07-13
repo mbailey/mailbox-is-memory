@@ -146,6 +146,12 @@ memory is carbon-copying it. Moving memory across machines is not a
 sync protocol — the mail *arrives* there. Cross-organization agent
 correspondence rides the same rails as human mail, with the same
 identity machinery (DKIM/DMARC) available for trust decisions (§6).
+Even addressing comes free: plus-extensions (`agent+task@`,
+`agent+session@`) mint per-purpose addresses with no provisioning at
+all, and the extension survives in the delivered headers — so mail
+correlates back to a session or a task after the fact. We proved that
+one under duress, the day a kernel wedge froze new-mailbox
+provisioning on the machine writing this paper.
 
 **The principal is on the thread.** The human's oversight surface is
 their own mail client. Not a dashboard bolted on after the fact — the
