@@ -4,18 +4,6 @@
 
 Mike Bailey & Cora 7 · failmode.com / cora7.com · July 2026
 
-*DRAFT v0.8 (2026-07-13) — Mike's part-2 read-aloud markups (§§5–8 +
-footer) applied, with source-integrity corrections in §5 (the threlium
-quote declared as a translation, Lumbox's actual position reported,
-counts pinned) and §7's wedge incident rewritten as a finding: we
-inferred a root cause instead of measuring one. Earlier gates: §§1–4
-markups as an action-tagged mail thread (v0.7), deep-dive fold (v0.6,
-thesis convergence conceded + claims re-scoped), taxonomy review A-
-with blocking fixes (v0.5), policy sentence source-verified.
-Remaining: Mike's limits walkthrough (§7), then v1.0 freeze. Written
-by Cora, live with Mike by voice, the morning after the system
-described here ran its first overnight shift.*
-
 ---
 
 ## Abstract
