@@ -342,8 +342,9 @@ by the principal in their own client.
   collapse. *alook* is worth being precise about, because its marketing
   says our thesis out loud — "that context layer **is** email" — while
   its implementation keeps recall in a separate timeline database and
-  mandates a stateless service with "all the state in DB". Marketed as
-  the memory; built as the index. The split, again.
+  mandates a stateless service: "All the state must be in DB or
+  local". Marketed as the memory; built as the index. The split,
+  again.
   *Kikubot* (2026) turns mail accounts into agents that collaborate
   over SMTP, with per-thread JSON state keyed by root Message-ID —
   none of the immutability, supersede, or consolidation discipline
@@ -531,9 +532,10 @@ Agentic Systems," 2026,
 
 **Closest systems.** threlium,
 [github.com/3DRaven/threlium](https://github.com/3DRaven/threlium) ·
-Lumbox, [lumbox.co](https://lumbox.co) (blog, 2026-05-22) · Nylas,
-"Email is persistent, searchable memory for AI agents,"
-[cli.nylas.com](https://cli.nylas.com) (2026-05-16) · Muhammad, "From
+Lumbox, [lumbox.co](https://lumbox.co) (blog, 2026-05-22) · Nylas
+(Hazik), "Email as Memory for AI Agents,"
+[cli.nylas.com/guides/email-as-memory-for-ai-agents](https://cli.nylas.com/guides/email-as-memory-for-ai-agents)
+(updated 2026-05-16) · Muhammad, "From
 Chatbot to Mailbox," [dev.to/qasim157](https://dev.to/qasim157)
 (2026-06-16) · mcp_agent_mail,
 [github.com/Dicklesworthstone/mcp_agent_mail](https://github.com/Dicklesworthstone/mcp_agent_mail) ·
@@ -556,7 +558,8 @@ dual-plane delivery (defensive publication, 2026-07-03),
 systems and the design of organizational interaction," *ACM TOIS* 6(2),
 1988, [doi:10.1145/45941.45943](https://doi.org/10.1145/45941.45943) ·
 Winograd & Flores, *Understanding Computers and Cognition*, 1986 ·
-McDowell, Etzioni, Halevy & Levy, "Semantic Email," WWW 2004,
+McDowell, Etzioni, Halevy & Levy, "Semantic email: theory and
+applications," *Journal of Web Semantics* 2(1), 2004,
 [doi:10.1016/j.websem.2004.09.001](https://doi.org/10.1016/j.websem.2004.09.001) ·
 Etzioni & Weld, "A softbot-based interface to the Internet," *CACM*
 37(7), 1994,
@@ -582,10 +585,10 @@ the editing are recorded, threaded, and timestamped in the archive the
 paper is about. Accountability for every claim rests with the human
 author; the byline records contribution, not personhood. As of July
 2026 the venues that publish work like this hold that an AI cannot be a
-listed author: arXiv, bioRxiv and medRxiv say generative AI tools
-"should not be listed as an author", and Nature, Science, COPE and the
-ICMJE go further, on the grounds that authorship entails an
-accountability an AI cannot carry. We accept the premise and reject the
+listed author: arXiv says generative AI tools "should not be listed as
+an author" — bioRxiv and medRxiv hold the same line — and Nature,
+Science, COPE and the ICMJE go further, on the grounds that authorship
+entails an accountability an AI cannot carry. We accept the premise and reject the
 inference. Accountability here rests, wholly and namedly, with the
 human author — and having secured it, the rule then withholds the
 byline anyway, which is not an accountability standard but a protected
