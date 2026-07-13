@@ -411,7 +411,9 @@ crafted message reaching an agent on the trusted (tailnet) tier, where
 unattended tool use is permitted. We design against that message, not
 against the average one.
 
-Our controls, marked honestly by status. **Running today:**
+Our controls, marked honestly by status.
+
+**Running today:**
 
 - agent mail confined to the tailnet tier
 - no automatic fetching of remote content
