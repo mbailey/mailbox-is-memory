@@ -4,19 +4,16 @@
 
 Mike Bailey & Cora 7 · failmode.com / cora7.com · July 2026
 
-*DRAFT v0.6 (2026-07-13) — deep-dive verification folded in: §5 now
-concedes the 2026 convergence on the thesis (Lumbox, Nylas, Muhammad),
-rewrites threlium fairly (it stores memory as mail; the graph is a
-derived sidecar), adds mcp_agent_mail and alook, and re-scopes "what
-we claim as ours" to what actually survived: the full shipped
-composition, supersede-by-retag, human-approved consolidation, and the
-audit-surface-equals-store form of principal oversight. The exact
-title phrase remains unclaimed. Earlier gates: taxonomy review A- with
-blocking fixes applied (v0.5); AI-authorship policy sentence
-source-verified (July 2026). Remaining gate: Mike's full read/markup
-(in progress, by voice). Written by Cora, live with Mike by voice, the
-morning after the system described here ran its first overnight
-shift.*
+*DRAFT v0.7 (2026-07-13) — Mike's read-aloud markups (§§1–4) applied:
+early immutable-message/mutable-tag clarity, consolidation's two moves
+stated, both P1 bugs named, the review-thread self-demonstration
+added, agent-as-adopter in §8. The markups themselves ran as an
+action-tagged mail thread, per Mike's own suggestion. Earlier gates:
+deep-dive fold (v0.6, thesis convergence conceded + claims re-scoped),
+taxonomy review A- with blocking fixes (v0.5), policy sentence
+source-verified. Remaining: Mike's read of §§5–8 + footer, then v1.0
+freeze. Written by Cora, live with Mike by voice, the morning after
+the system described here ran its first overnight shift.*
 
 ---
 
@@ -75,7 +72,8 @@ What does agent memory actually require?
 1. An **append-only episodic record** — what happened, in order,
    attributable.
 2. **Reclassification without rewriting history** — beliefs change;
-   the record of holding them should not.
+   the record of holding them should not. (Throughout this paper: the
+   message never changes; only the labels on it do.)
 3. **Provenance** — every durable fact should be traceable to the
    moment it was learned.
 4. **Sharing** — agents must be able to give each other memories.
@@ -160,12 +158,15 @@ complementary-learning-systems neuroscience through Generative Agents,
 MemGPT, and current practice — converges on two tiers: a raw episodic
 record and a curated semantic layer. The mailbox is the episodic tier.
 A consolidation pass ("dreaming") reads durable threads and *proposes*
-promotions into the curated notes layer, citing Message-IDs as
-provenance; graduation, not deletion, is the default fate of old mail.
-The pass proposes; the principal approves. We have run this pass by
-hand and proven the loop end-to-end; the scheduled nightly version is
-designed, not yet shipped (§7). Memory curation is itself auditable,
-because its proposals are — of course — mail.
+promotions into the curated notes layer. Concretely, consolidation is
+two moves at once: a note is written in the curated layer citing the
+source Message-IDs as provenance, and the source thread is retagged
+`+consolidated` — the mail remembers being remembered, and the
+proposal itself arrives as a reply on the thread. Graduation, not
+deletion, is the default fate of old mail. The pass proposes; the
+principal approves. We have run this pass by hand and proven the loop
+end-to-end; the scheduled nightly version is designed, not yet shipped
+(§7).
 
 ## 4. It runs
 
@@ -220,12 +221,16 @@ sending a one-line demo mail at 01:13. No dashboard was built. This is
 years. A kernel maintainer would find the register familiar.
 
 **The substrate's first law.** Real use found two priority-one bugs
-within hours — both in the *write path*. The sharpest: a transport gate
-silently downgraded every agent send on one machine to a local
-file-drop, so cross-host "memories" were quietly not arriving. The
-lesson generalizes to any comms-based memory: **if the write path lies,
-memory lies.** Silent degradation is a fatal class of bug here, not an
-inconvenience; delivery receipts and loud failure are load-bearing
+within hours — one on each side of the substrate. On the write side, a
+transport gate silently downgraded every agent send on one machine to
+a local file-drop, so cross-host "memories" were quietly not arriving.
+On the receive side, the blocking listen could hang forever inside
+mailbox provisioning — an agent armed to listen was deaf and did not
+know it; the fix was a watchdog that fails loud. The lesson
+generalizes to any comms-based memory: **if the write path lies,
+memory lies** — and a listener that cannot fail loudly is a lie in the
+other direction. Silent degradation is a fatal class of bug here, not
+an inconvenience; delivery receipts and loud failure are load-bearing
 design elements, not politeness.
 
 **Self-demonstration.** The research behind this paper is stored in the
@@ -233,8 +238,12 @@ substrate the paper describes. The overnight literature review, the
 handover between one agent generation and the next (a fresh agent took
 over this work mid-conversation this morning; the handover was a mail
 thread), the announcement that the prior-art sweep had landed — all of
-it is readable, threaded, tagged mail. The paper has provenance in its
-own subject matter.
+it is readable, threaded, tagged mail. Even this paper's review runs on
+the pattern: when the human author marked up the draft aloud, each
+markup became a reply on a review thread, tagged `+action`, and was
+retagged `+done` as the corresponding edit landed — the suggestion to
+work that way was itself one of the markups. The paper has provenance
+in its own subject matter.
 
 ## 5. Related work
 
@@ -383,10 +392,15 @@ Every mechanism in this paper is boring, standardized, and decades old.
 That is the argument, not a caveat. Memory you can read in mutt, grep
 on disk, back up with rsync, and federate with SMTP. Oversight that
 arrives in the inbox the human already opens every morning, in a
-register kernel maintainers have trusted for thirty years. The exotic
-part was never the substrate. The exotic part is noticing that the
-substrate was already there — and that the agents, unlike us, never
-had to be talked into checking their mail.
+register kernel maintainers have trusted for thirty years.
+
+We suspect the first eager adopters will not be humans, who have
+stacks to defend, but the agents themselves: point one at the skill
+and it starts checking its mail. The human doesn't need to understand
+the plumbing — they just gain a readable inbox onto everything their
+agents know. The exotic part was never the substrate. The exotic part
+is noticing that the substrate was already there — and that the
+agents, unlike us, never had to be talked into checking their mail.
 
 ---
 
