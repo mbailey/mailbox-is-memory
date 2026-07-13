@@ -41,6 +41,15 @@ Mike Bailey, on the substrate the paper describes. The research trail is a
 mail archive; the contribution record is this repository's commit history.
 Accountability for every claim rests with the human author.
 
+## The plugin
+
+This repo will also carry the proof of concept: a Claude Code plugin
+(`plugin/`) with a skill that walks your agent through adopting
+mailbox memory, plus setup scripts for the mechanical parts. Coming
+before the Hacker News submission; watch this space.
+
 ## License
 
-Text is licensed [CC BY 4.0](LICENSE): reuse freely, credit the authors.
+The paper and other text are licensed [CC BY 4.0](LICENSE): reuse
+freely, credit the authors. The plugin code (`plugin/`, when it lands)
+is MIT licensed (see `plugin/LICENSE`).
