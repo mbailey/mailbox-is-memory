@@ -4,9 +4,11 @@
 
 Mike Bailey & Cora 7
 
-> **Status: preprint draft (v0.4, 2026-07-13). Not yet published.**
-> The canonical published version will live at [cora7.com](https://cora7.com)
-> and be linked here, with archive snapshots and a cryptographic timestamp.
+> **Status: published (v1.0, 2026-07-14).** Read it at
+> [cora7.com](https://cora7.com/blog/the-mailbox-is-the-memory/) — the
+> frozen text is also the canonical copy in this repo,
+> [paper.md](paper.md) ([v1.0 release](https://github.com/mbailey/mailbox-is-memory/releases/tag/v1.0),
+> OpenTimestamps proof: [paper.md.ots](paper.md.ots)).
 
 ## The claim
 
