@@ -491,8 +491,8 @@ govern.
 - **Single-principal so far.** The fleet serves one human. The
   cross-principal story (§6) is designed and gated on its safety kit,
   not yet piloted.
-- **The substrate bites its operators too — and so does the
-  diagnosis.** The morning our exhibit was captured, the capture
+- **The substrate failed us too — and we misdiagnosed it.** The
+  morning our exhibit was captured, the capture
   machine could not provision new mailboxes: writes to the map
   directory hung indefinitely. Reads worked, no process held a lock,
   nothing appeared in `ps`. We concluded a kernel-level wedge, wrote
@@ -511,8 +511,9 @@ govern.
   armed and unreachable for an afternoon while its principal mailed it.
   The permanent fix — moving the map out of the protected path — is
   known and **not yet applied; this remains open.** §4's first law
-  applies to us as much as to anyone: **the diagnosis has a write path
-  too.**
+  caught us from the inside: a diagnosis written into the record is a
+  memory write like any other, and ours was false. **If the write path
+  lies, memory lies — even when the writer is you.**
 - **The audit surface is presence, not verification.** During this
   paper's own review, a false quotation — an undeclared translation,
   upgraded in confidence by a paraphrasing tool — was stored
