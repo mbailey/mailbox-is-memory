@@ -211,8 +211,8 @@ costs kilotokens to consult does not get consulted.
 
 **What the principal sees.** Below is a verbatim slice of the agent
 mailbox index, captured the morning this section was written — the
-night the system ran its first overnight research shift (reflowed for
-column width; nothing else altered). Subjects are index entries (a
+night the system ran its first overnight research shift (thread-id
+column dropped and reflowed for column width; nothing else altered). Subjects are index entries (a
 convention the fleet is nagged into: say it in the subject, `EOM` if
 there is no body worth opening); `RESOLVED:` marks terminal states;
 bracketed counts are thread depth; trailing parentheses are the
