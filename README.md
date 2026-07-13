@@ -43,13 +43,31 @@ Accountability for every claim rests with the human author.
 
 ## The plugin
 
-This repo will also carry the proof of concept: a Claude Code plugin
-(`plugin/`) with a skill that walks your agent through adopting
-mailbox memory, plus setup scripts for the mechanical parts. Coming
-before the Hacker News submission; watch this space.
+The proof of concept described above ships as a Claude Code plugin
+(`plugin/`): a skill that walks your agent through adopting mailbox
+memory, plus setup scripts for the mechanical parts.
+
+```
+/plugin marketplace add mbailey/mailbox-is-memory
+/plugin install mailbox-memory
+```
+
+Then, in a Claude Code session, ask your agent to **set up mailbox
+memory** — the skill takes over from there.
+
+No Claude Code? Clone the repo and run the setup script directly:
+
+```bash
+git clone https://github.com/mbailey/mailbox-is-memory
+cd mailbox-is-memory
+./plugin/scripts/setup.sh all
+```
+
+Full walkthrough, requirements, and command reference:
+[`plugin/README.md`](plugin/README.md).
 
 ## License
 
 The paper and other text are licensed [CC BY 4.0](LICENSE): reuse
-freely, credit the authors. The plugin code (`plugin/`, when it lands)
-is MIT licensed (see `plugin/LICENSE`).
+freely, credit the authors. The plugin code (`plugin/`) is MIT licensed
+(see `plugin/LICENSE`).
