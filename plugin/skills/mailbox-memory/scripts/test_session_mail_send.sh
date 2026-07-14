@@ -101,6 +101,72 @@ SESSION_MAIL_TRANSPORT=bogus bash "$SEND" "x.y" --from a -- b >/dev/null 2>"$T/v
 { [ "$rc" = 2 ] && grep -q "invalid SESSION_MAIL_TRANSPORT" "$T/verr"; } \
   && ok "override: invalid transport rejected (exit 2)" || no "override: invalid transport not rejected (rc=$rc)"
 
+# --- do-003 (SESH-92 rehearsal Finding B): filedrop syncs the index ----------
+# Deterministic + side-effect-free: stub `notmuch` on PATH rather than
+# touching the real host's notmuch config/database. The stub records every
+# invocation to a file so the assertions below can check exactly what
+# session-mail-send called it with, without any real indexing happening.
+STUBBIN="$T/stubbin"; mkdir -p "$STUBBIN"
+NOTMUCH_CALLS="$T/notmuch-calls"
+: > "$NOTMUCH_CALLS"
+cat > "$STUBBIN/notmuch" <<'STUB'
+#!/usr/bin/env bash
+echo "$*" >> "$NOTMUCH_CALLS_FILE"
+case "$1 $2" in
+  "config get") [ "$3" = database.path ] && echo "$STUB_DB_PATH" ;;
+esac
+exit 0
+STUB
+chmod +x "$STUBBIN/notmuch"
+
+ROOT4="$T/agents4"
+# configured: STUB_DB_PATH non-empty -> guard passes -> `notmuch new --quiet` called
+PATH="$STUBBIN:$PATH" NOTMUCH_CALLS_FILE="$NOTMUCH_CALLS" STUB_DB_PATH="$T/fake-mail" \
+  SESSION_MAIL_ROOT="$ROOT4" SESSION_MAIL_TRANSPORT=filedrop \
+  bash "$SEND" configured-box --from a -- "body" >/dev/null 2>"$T/err4"
+grep -qF 'new --quiet' "$NOTMUCH_CALLS" \
+  && ok "filedrop + configured notmuch: runs 'notmuch new --quiet'" \
+  || no "filedrop + configured notmuch: did not sync-index"
+
+# not configured: STUB_DB_PATH empty -> guard fails -> notmuch never invoked
+: > "$NOTMUCH_CALLS"
+ROOT5="$T/agents5"
+PATH="$STUBBIN:$PATH" NOTMUCH_CALLS_FILE="$NOTMUCH_CALLS" STUB_DB_PATH="" \
+  SESSION_MAIL_ROOT="$ROOT5" SESSION_MAIL_TRANSPORT=filedrop \
+  bash "$SEND" unconfigured-box --from a -- "body" >/dev/null 2>"$T/err5"
+# The guard DOES call `notmuch config get database.path` to probe whether
+# notmuch is configured (that's how it knows to skip) — it must NOT go on to
+# call `notmuch new` when that probe comes back empty.
+grep -qF 'new --quiet' "$NOTMUCH_CALLS" \
+  && no "filedrop + unconfigured notmuch: called 'notmuch new' despite empty database.path: $(cat "$NOTMUCH_CALLS")" \
+  || ok "filedrop + unconfigured notmuch: guard skips 'notmuch new' (not just get)"
+
+# notmuch entirely absent from PATH -> send still succeeds (non-fatal guard)
+ROOT6="$T/agents6"
+out6="$(SESSION_MAIL_ROOT="$ROOT6" SESSION_MAIL_TRANSPORT=filedrop \
+        bash "$SEND" no-notmuch-box --from a -- "body" 2>"$T/err6")"
+echo "$out6" | grep -Eq '@.*\.session-mail>$' \
+  && ok "filedrop: send still succeeds with no notmuch on PATH at all" \
+  || no "filedrop: send failed with no notmuch on PATH"
+
+# a failing `notmuch new` must never fail the send (non-fatal guard)
+cat > "$STUBBIN/notmuch" <<'STUB'
+#!/usr/bin/env bash
+case "$1 $2" in
+  "config get") echo "/some/path" ;;
+  "new") exit 1 ;;
+esac
+exit 0
+STUB
+chmod +x "$STUBBIN/notmuch"
+ROOT7="$T/agents7"
+out7="$(PATH="$STUBBIN:$PATH" SESSION_MAIL_ROOT="$ROOT7" SESSION_MAIL_TRANSPORT=filedrop \
+        bash "$SEND" failing-index-box --from a -- "body" 2>"$T/err7")"
+rc7=$?
+{ [ "$rc7" -eq 0 ] && echo "$out7" | grep -Eq '@.*\.session-mail>$'; } \
+  && ok "filedrop: a failing 'notmuch new' does not fail the send" \
+  || no "filedrop: send failed when index sync failed (rc=$rc7)"
+
 # --- help surface (regression: do-001 F1 — no shell-code leak) ----------------
 bash "$SEND" --help | head -1 | grep -q "session-mail-send" \
   && ok "help: --help prints the header" || no "help: --help broken"
