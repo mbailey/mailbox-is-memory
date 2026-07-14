@@ -164,6 +164,33 @@ notmuch_set_new_tags() {
     fi
 }
 
+# bootstrap_set_database_path VALUE — the first-ever `notmuch config set`
+# call against a brand-new EMPTY config prints "Error: could not locate
+# database." to stderr, regardless of which key is being set, and keeps
+# printing it on every subsequent call until database.path itself has
+# successfully been written once — even though every one of those calls
+# still exits 0 and the value IS written (verified live, notmuch 0.40; do-003
+# / SESH-92 rehearsal Finding C). It reads exactly like a failure to an
+# unassisted eye scanning setup output on a truly fresh machine, so swallow
+# that one known-benign line here (this is the FIRST config-set call setup.sh
+# ever makes on a freshly-bootstrapped config, so it's the one call that can
+# hit it) and print a one-line explanation instead of the raw notmuch error.
+bootstrap_set_database_path() {
+    local value="$1" out
+    if [ "$DRY_RUN" = 1 ]; then
+        printf '  + notmuch config set database.path %s\n' "$value"
+        return 0
+    fi
+    out="$(notmuch config set database.path "$value" 2>&1 1>/dev/null)" || true
+    if [ -n "$out" ]; then
+        if [ "$out" = "Error: could not locate database." ]; then
+            echo "[notmuch]   (harmless: notmuch prints that line on the very first config write to a brand-new config, before the database itself exists — the value is set correctly, exit 0)"
+        else
+            printf '%s\n' "$out" >&2
+        fi
+    fi
+}
+
 cmd_notmuch() {
     local force=0
     local hooks_dir=""
@@ -232,7 +259,7 @@ cmd_notmuch() {
     # explicitly for notmuch versions that want it set directly.
     if [ "$bootstrapped" = 1 ]; then
         echo "[notmuch] database root: setting database.path = $mailbox_root (fresh config)"
-        run notmuch config set database.path "$mailbox_root"
+        bootstrap_set_database_path "$mailbox_root"
         echo "[notmuch] database root (mail_root): setting database.mail_root = $mailbox_root (fresh config)"
         run notmuch config set database.mail_root "$mailbox_root"
     elif [ "$force" = 1 ]; then

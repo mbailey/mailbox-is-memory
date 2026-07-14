@@ -86,7 +86,22 @@ and confirm a superseded memory *stays* superseded (the tag is a
 projection of the mail, not the record itself — it's rederived from the
 `Supersedes:` header at index time, so deleting the index can't erase a
 correction). Deliberately destructive of the index only; it dumps and
-restores your tags around the experiment, even on failure:
+restores your tags around the experiment, even on failure.
+
+The proof needs a real superseded message to point at, and step 3 above
+only ever sent one message that's never been corrected — so correct it
+first, using the Message-ID step 3 printed to stdout:
+
+```bash
+"$CLAUDE_PLUGIN_ROOT/skills/mailbox-memory/scripts/session-mail-send" \
+  memory --from you@yourhost --supersedes "<message-id-from-step-3>" "corrected PoC memory"
+```
+
+Quote the Message-ID — the angle brackets are real characters in the ID
+(`<...>`), but unquoted they're shell redirection and the command fails
+with something like `no such file or directory: 1783991944...@yourhost`.
+
+Then run the proof:
 
 ```bash
 "$CLAUDE_PLUGIN_ROOT/skills/mailbox-memory/scripts/session-mail-rebuild-proof"
@@ -94,6 +109,14 @@ restores your tags around the experiment, even on failure:
 
 Exit 0 = the memory survived losing its own index. Exit 1 = it didn't —
 a real falsification; don't paper over it.
+
+If it instead exits 2 saying "no superseded message in this corpus" right
+after you just superseded one, the notmuch index hasn't caught up yet —
+`session-mail-send`'s file-drop path indexes synchronously now, but if
+you're on the smtp/postfix path, or the autoindex timer's the only thing
+that's ever touched this box, run `notmuch new` by hand and try again
+(the timer that does this automatically runs every 5 minutes; see
+`setup.sh autoindex`).
 
 ## 6. Browse via `query:memory`
 

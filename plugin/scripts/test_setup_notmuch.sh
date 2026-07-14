@@ -55,11 +55,16 @@ t2="$(mktemp -d)"
     "$SETUP" all >/dev/null 2>&1
     SEND="$HERE/../skills/mailbox-memory/scripts/session-mail-send"
     bash "$SEND" memory --from tester "round trip probe" >/dev/null 2>&1
-    notmuch new >/dev/null 2>&1
+    # do-003 (SESH-92 rehearsal Finding B): no manual `notmuch new` here —
+    # session-mail-send's filedrop path now indexes synchronously, so the
+    # message must already be findable via query:memory without the caller
+    # doing anything else. This is the exact gap the fresh-VM rehearsal hit:
+    # steps 5/6 saw an empty index right after send because the only other
+    # indexing path is a 300s autoindex timer that hadn't fired yet.
     notmuch search query:memory 2>/dev/null | grep -q tester && echo OK || echo FAIL
 ) > "$t2/result"
 grep -q '^OK$' "$t2/result" \
-    && ok "fresh machine: setup.sh all -> send -> notmuch new -> query:memory round trip" \
+    && ok "fresh machine: setup.sh all -> send -> query:memory round trip (no manual notmuch new)" \
     || no "fresh machine: round trip failed"
 rm -rf "$t2"
 
@@ -94,6 +99,25 @@ else
     ok "dry-run: touches nothing on a fresh machine"
 fi
 rm -rf "$t4"
+
+# --- 5. fresh machine: setup.sh output never leaks the raw notmuch          -
+#        "could not locate database" line (Finding C) -----------------------
+t5="$(mktemp -d)"
+(
+    export HOME="$t5/home"
+    export NOTMUCH_CONFIG="$t5/notmuchrc"
+    mkdir -p "$HOME"
+    "$SETUP" notmuch
+) > "$t5/out" 2>&1
+if grep -qF 'Error: could not locate database.' "$t5/out"; then
+    no "Finding C: raw 'could not locate database' error leaked in setup.sh output"
+else
+    ok "Finding C: raw 'could not locate database' error not leaked"
+fi
+grep -qF '(harmless: notmuch prints that line on the very first config write' "$t5/out" \
+    && ok "Finding C: harmless annotation printed in its place" \
+    || no "Finding C: harmless annotation missing"
+rm -rf "$t5"
 
 echo ----
 if [ "$fail" -eq 0 ]; then

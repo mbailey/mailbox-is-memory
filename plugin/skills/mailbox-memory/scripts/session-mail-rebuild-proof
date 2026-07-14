@@ -103,7 +103,11 @@ WITNESS="$("$NOTMUCH" search --output=messages 'tag:superseded' 2>/dev/null | he
 if [ -z "$WITNESS" ]; then
   echo
   echo "rebuild-proof: no superseded message in this corpus — nothing to prove."
-  echo "  Supersede something first:  session mail send <box> --supersedes <msgid> ..."
+  # do-003 (Finding D): this used to print the space-form "session mail send",
+  # which reads as a Claude Code slash-command/skill invocation, not something
+  # a cold-clone reader (no Claude Code) can actually run — the real script
+  # they just used is hyphenated: session-mail-send.
+  echo "  Supersede something first:  session-mail-send <box> --supersedes <msgid> ..."
   exit 2
 fi
 echo

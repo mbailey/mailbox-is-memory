@@ -267,6 +267,27 @@ case "$MODE" in
     build_message > "${MBOX}/tmp/${UNIQUE}"
     sync                                                   # best-effort durability
     mv "${MBOX}/tmp/${UNIQUE}" "${MBOX}/new/${UNIQUE}"     # atomic delivery
+
+    # Synchronous auto-index (do-003, SESH-92 rehearsal Finding B). The ONLY
+    # indexing path setup.sh wires up is a 300s launchd/systemd timer, so a
+    # message sent right after provisioning (or between timer ticks) is
+    # invisible to notmuch — and therefore to session-mail-rebuild-proof and
+    # `notmuch search query:memory` — until the timer next fires. Cold-clone
+    # rehearsal (SESH-92) hit exactly this: sent, superseded, and immediately
+    # ran rebuild-proof, which reported "no superseded message in this
+    # corpus" because the index hadn't caught up, even though both messages
+    # were already durably on disk. Run `notmuch new --quiet` right now —
+    # mirrors what the timer would do anyway, so it's safe and idempotent.
+    # Guarded (only if notmuch is on PATH and actually configured — i.e.
+    # `database.path` resolves to something, not just "get exits 0", which
+    # notmuch does unconditionally even with zero config) and NON-FATAL: a
+    # full mailbox re-index must never fail the send itself — the message is
+    # already durably delivered to the maildir regardless of indexing.
+    if command -v notmuch >/dev/null 2>&1 \
+       && [ -n "$(notmuch config get database.path 2>/dev/null)" ]; then
+      notmuch new --quiet >/dev/null 2>&1 || true
+    fi
+
     # The load-bearing degradation notice is CROSS-HOST ONLY (design §4, do-006
     # n2 fix): only a host-addressed recipient (<name>@host) is a cross-host send
     # that filedrop CANNOT deliver — it wrote a junk local copy no remote agent
