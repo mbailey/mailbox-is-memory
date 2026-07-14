@@ -94,8 +94,12 @@ first, using the Message-ID step 3 printed to stdout:
 
 ```bash
 "$CLAUDE_PLUGIN_ROOT/skills/mailbox-memory/scripts/session-mail-send" \
-  memory --from you@yourhost --supersedes <message-id-from-step-3> "corrected PoC memory"
+  memory --from you@yourhost --supersedes "<message-id-from-step-3>" "corrected PoC memory"
 ```
+
+Quote the Message-ID — the angle brackets are real characters in the ID
+(`<...>`), but unquoted they're shell redirection and the command fails
+with something like `no such file or directory: 1783991944...@yourhost`.
 
 Then run the proof:
 
