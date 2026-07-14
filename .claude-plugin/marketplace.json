@@ -1,0 +1,18 @@
+{
+  "name": "mailbox-is-memory",
+  "owner": {
+    "name": "Mike Bailey"
+  },
+  "metadata": {
+    "description": "Self-hosted marketplace for the mailbox-memory plugin -- the companion Claude Code plugin for the paper 'The Mailbox Is the Memory'.",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "mailbox-memory",
+      "description": "Email as durable memory and comms for LLM agents. A skill that walks your agent through provisioning a maildir, notmuch config + auto-tag hook, and the send/wait/read verbs -- so it can mail itself memories and read them back in minutes.",
+      "source": "./plugin",
+      "homepage": "https://github.com/mbailey/mailbox-is-memory"
+    }
+  ]
+}

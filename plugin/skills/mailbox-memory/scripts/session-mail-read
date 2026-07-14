@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# session-mail-read — open ONE message from a maildir (the `read` half of r07's
+# progressive-disclosure interface, COMS-86 do-010 / design §6 D8). Selects by
+# the 1-based index printed by `session mail list` (identical ordering). Prints
+# a compact header block + body by default; opens the whole thread only on an
+# explicit --thread. Reading is NON-DESTRUCTIVE (a peek): it never moves new/->
+# cur/, so it never disturbs `session mail wait`'s exactly-once claim.
+#
+#   session mail read <me> <n> [--thread] [--full] [--raw] [--root DIR]
+#
+#     --thread   also print every other message in the same thread (References/
+#                In-Reply-To/Message-ID chain), chronologically
+#     --full     print the complete header block, not the compact one
+#     --raw      print the raw RFC 5322 file(s) verbatim
+#
+# Maildir resolution is CASE-INSENSITIVE (design §5.7). Root defaults to
+# ~/.mail/agents; override with --root or $SESSION_MAIL_ROOT.
+set -euo pipefail
+die() { echo "session mail read: $*" >&2; exit 2; }
+lc()  { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+
+ROOT="${SESSION_MAIL_ROOT:-$HOME/.mail/agents}"
+ME=""; N=""; THREAD=0; FULL=0; RAW=0
+
+[ $# -ge 1 ] || die "missing <me>  (usage: session mail read <me> <n> [--thread] [--full] [--raw] [--root DIR])"
+case "$1" in -h|--help) sed -n '2,17p' "$0"; exit 0 ;; esac
+ME="$1"; shift
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --thread|-t) THREAD=1; shift ;;
+    --full)      FULL=1; shift ;;
+    --raw)       RAW=1; shift ;;
+    --root)      ROOT="$2"; shift 2 ;;
+    -h|--help)   sed -n '2,17p' "$0"; exit 0 ;;
+    -*)          die "unknown flag: $1" ;;
+    *)           [ -z "$N" ] && { N="$1"; shift; } || die "unexpected argument: $1" ;;
+  esac
+done
+[ -n "$N" ] || die "missing <n>  (run \`session mail list $ME\` to see indices)"
+case "$N" in ''|*[!0-9]*) die "index must be a positive integer, got: $N" ;; esac
+[ "$N" -ge 1 ] || die "index must be >= 1"
+
+# Case-insensitive maildir resolution — identical to session-mail-list (§5.7).
+resolve_mbox() {
+  local me="$1" lc_me d b
+  lc_me="$(lc "$me")"
+  if [ -d "$ROOT/$lc_me" ]; then printf '%s\n' "$ROOT/$lc_me"; return 0; fi
+  if [ -d "$ROOT" ]; then
+    for d in "$ROOT"/*/; do
+      [ -d "$d" ] || continue
+      b="$(basename "$d")"
+      [ "$(lc "$b")" = "$lc_me" ] && { printf '%s\n' "${d%/}"; return 0; }
+    done
+  fi
+  printf '%s\n' "$ROOT/$lc_me"
+}
+MBOX="$(resolve_mbox "$ME")"
+
+# Deterministic enumeration — MUST match session-mail-list byte-for-byte so an
+# index from `list` opens the same message here. Emits: <state>\t<basekey>\t<path>
+enumerate() {
+  local m base
+  {
+    if [ -d "$MBOX/new" ]; then
+      for m in "$MBOX"/new/*; do
+        [ -f "$m" ] || continue
+        printf 'N\t%s\t%s\n' "$(basename "$m")" "$m"
+      done
+    fi
+    if [ -d "$MBOX/cur" ]; then
+      for m in "$MBOX"/cur/*; do
+        [ -f "$m" ] || continue
+        base="$(basename "$m")"; base="${base%%:*}"
+        printf 'S\t%s\t%s\n' "$base" "$m"
+      done
+    fi
+  } | sort -t "$(printf '\t')" -k2,2
+}
+
+hdr() {
+  awk -v h="$(lc "$1")" '
+    /^\r?$/ { exit }
+    { low = tolower($0)
+      if (index(low, h ":") == 1) { line=$0; sub(/^[^:]*:[ \t]*/,"",line); sub(/\r$/,"",line); print line; exit } }
+  ' "$2"
+}
+
+# Resolve the requested index to a path over the shared ordering.
+TARGET=""; count=0
+while IFS="$(printf '\t')" read -r _state _key path; do
+  [ -n "${path:-}" ] || continue
+  count=$((count+1))
+  [ "$count" -eq "$N" ] && { TARGET="$path"; break; }
+done < <(enumerate)
+[ -n "$TARGET" ] || die "no message at index $N (mailbox has $count)"
+
+# Print one message: raw verbatim, or a header block (compact/full) + body.
+print_message() {
+  local f="$1"
+  if [ "$RAW" -eq 1 ]; then cat "$f"; return; fi
+  if [ "$FULL" -eq 1 ]; then
+    awk '/^\r?$/{exit} {print}' "$f"       # entire header block
+  else
+    local k v                              # compact: the headers that matter for a read
+    for k in From To Subject Date Message-ID X-Task X-Project X-Session-From; do
+      v="$(hdr "$k" "$f")"; [ -n "$v" ] && printf '%s: %s\n' "$k" "$v"
+    done
+  fi
+  echo                                     # blank line ends headers
+  awk 'body{print} /^\r?$/{body=1}' "$f"   # everything after the first blank line
+}
+
+if [ "$THREAD" -eq 0 ]; then
+  print_message "$TARGET"
+  exit 0
+fi
+
+# --- thread mode: gather the References/In-Reply-To/Message-ID chain ----------
+# Membership set of message-ids (newline-delimited string set — no bash-4 assoc
+# array needed). ids_of prints every <id> a message carries (its own + cited).
+S=$'\n'
+in_set() { printf '%s' "$S" | grep -Fxq "$1"; }
+add_id() { in_set "$1" || S="${S}${1}"$'\n'; }
+ids_of() { { hdr Message-ID "$1"; hdr In-Reply-To "$1"; hdr References "$1"; } | grep -oE '<[^<>]+>' || true; }
+
+while IFS= read -r id; do [ -n "$id" ] && add_id "$id"; done < <(ids_of "$TARGET")
+
+# Fixpoint over the mailbox: a message joins the thread if any of its ids is
+# already in S; joining contributes its ids (pulls in replies + ancestors).
+# Bounded by message count — threads are small; the cap is a belt-and-braces.
+members=$'\n'                              # newline-delimited set of member paths
+is_member() { printf '%s' "$members" | grep -Fxq "$1"; }
+total="$(enumerate | grep -c . || true)"
+pass=0
+while [ "$pass" -le "$total" ]; do
+  changed=0
+  while IFS="$(printf '\t')" read -r _state _key path; do
+    [ -n "${path:-}" ] || continue
+    is_member "$path" && continue
+    while IFS= read -r id; do
+      [ -n "$id" ] || continue
+      if in_set "$id"; then
+        members="${members}${path}"$'\n'
+        while IFS= read -r j; do [ -n "$j" ] && add_id "$j"; done < <(ids_of "$path")
+        changed=1
+        break
+      fi
+    done < <(ids_of "$path")
+  done < <(enumerate)
+  [ "$changed" -eq 0 ] && break
+  pass=$((pass+1))
+done
+
+# Emit thread members in enumerate() (chronological) order.
+first=1
+while IFS="$(printf '\t')" read -r _state _key path; do
+  [ -n "${path:-}" ] || continue
+  is_member "$path" || continue
+  [ "$first" -eq 1 ] || printf -- '---\n'
+  first=0
+  print_message "$path"
+done < <(enumerate)

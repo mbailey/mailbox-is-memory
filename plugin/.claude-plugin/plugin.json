@@ -1,0 +1,8 @@
+{
+  "name": "mailbox-memory",
+  "version": "0.1.0",
+  "description": "Email as durable memory and comms for LLM agents. A skill that walks your agent through provisioning a maildir, notmuch config + auto-tag hook, and the send/wait/read verbs -- so it can mail itself memories and read them back in minutes. Companion code for the paper 'The Mailbox Is the Memory'.",
+  "author": {
+    "name": "Mike Bailey"
+  }
+}
